@@ -58,7 +58,7 @@ struct ConvexityDefect
 };
 
 // Thanks to Jose Manuel Cabrera for part of this C++ wrapper function
-/*void findConvexityDefects(vector<Point>& contour, vector<int>& hull, vector<ConvexityDefect>& convexDefects)
+void findConvexityDefects(vector<Point>& contour, vector<int>& hull, vector<ConvexityDefect>& convexDefects)
 {
     if(hull.size() > 0 && contour.size() > 0)
     {
@@ -110,7 +110,7 @@ struct ConvexityDefect
     cvReleaseMemStorage(&storage);
 
     }
-}*/
+}
 
 static void colorizeDisparity( const Mat& gray, Mat& rgb, double maxDisp=-1.f, float S=1.f, float V=1.f )
 {
@@ -207,11 +207,11 @@ int main(int argc, char** argv)
 
         for(int handI = 0; handI < 2; handI++)
         {
-
             if(sensor->getNumTrackedUsers() > 0)
             {
                 Skeleton skel =  sensor->getSkeleton(sensor->getUID(0));
                 SkeletonPoint hand;
+
 
                 if( handI == 0)
                     hand = skel.leftHand;
@@ -219,10 +219,7 @@ int main(int argc, char** argv)
                     hand = skel.rightHand;
                 if(hand.confidence == 1.0)
                 {
-                    handDepth = hand.z * (DEPTH_SCALE_FACTOR);
-                    
-					
-
+                    //handDepth = hand.z * (DEPTH_SCALE_FACTOR);
                     if(!handApproachingDisplayPerimeter(hand.x, hand.y))
                     {
                         roi.x = hand.x - ROI_OFFSET;
@@ -230,16 +227,17 @@ int main(int argc, char** argv)
                     }
                 }
             }
-            else
-                handDepth = -1;
+            //else
+                //handDepth = -1;
 
             // extract hand from image
             Mat handMat(depthShow, roi);
+			//Mat handThresh;
             //Mat handMat = handCpy.clone();
 
             // binary threshold
             //if(handDepth != -1)
-			    //handMat = (handMat > (handDepth - BIN_THRESH_OFFSET)) & (handMat < (handDepth + BIN_THRESH_OFFSET));
+			//  handThresh = (handMat > (handDepth - BIN_THRESH_OFFSET)) & (handMat < (handDepth + BIN_THRESH_OFFSET));
 
             // last pre-filtering step, apply median blur
             //medianBlur(handMat, handMat, MEDIAN_BLUR_K);
@@ -255,7 +253,7 @@ int main(int argc, char** argv)
             Mat validColorDisparityMap;
             colorDisparityMap.copyTo( validColorDisparityMap, handMat != 0 );
 			cv::Size a(1,1);
-			GaussianBlur(handMat, handMat, a, 1); 
+			GaussianBlur(validColorDisparityMap, validColorDisparityMap, a, 1); 
 
 			/*capture.retrieve( disparityMap, CV_CAP_OPENNI_DISPARITY_MAP );
             Mat colorDisparityMap;
@@ -264,7 +262,25 @@ int main(int argc, char** argv)
             colorDisparityMap.copyTo( validColorDisparityMap, disparityMap != 0 );
             imshow( "colorized disparity map", validColorDisparityMap );*/
 
-			
+			//threshold( validColorDisparityMap, validColorDisparityMap, 100, 255,THRESH_TRUNC );
+		
+			int i,j;
+			for( i = 0; i < validColorDisparityMap.rows; ++i)
+			{
+				for ( j = 0; j < validColorDisparityMap.cols; ++j)
+				{
+					if( validColorDisparityMap.at<Vec3b>(i,j)[2] < (validColorDisparityMap.at<Vec3b>(i,j)[0])+100
+					|| validColorDisparityMap.at<Vec3b>(i,j)[2] < (validColorDisparityMap.at<Vec3b>(i,j)[1])+100)
+					{
+						validColorDisparityMap.at<Vec3b>(i,j)[0] = 0;
+						validColorDisparityMap.at<Vec3b>(i,j)[1] = 0;
+						validColorDisparityMap.at<Vec3b>(i,j)[2] = 0;
+
+					}
+				}
+			}
+
+
 			debugFrames.push_back(validColorDisparityMap);
             //cvtColor(debugFrames[handI], debugFrames[handI], CV_GRAY2RGB);
 
@@ -302,8 +318,8 @@ int main(int argc, char** argv)
                         //}
 
                         // find convexity defects
-                        //vector<ConvexityDefect> convexDefects;
-                        //findConvexityDefects(approxCurve, hull, convexDefects);
+                        vector<ConvexityDefect> convexDefects;
+                        findConvexityDefects(approxCurve, hull, convexDefects);
                         //printf("Number of defects: %d.\n", (int) convexDefects.size());
 
                         //for(int j = 0; j < convexDefects.size(); j++)
@@ -327,7 +343,7 @@ int main(int argc, char** argv)
                         double handRatio = curveArea/hullArea;
 						//printf("\n %d", handRatio);
                         // hand is grasping
-                        if(handRatio <= GRASPING_THRESH)
+                        if(handRatio <= GRASPING_THRESH && convexDefects.size() > 0)
                             //circle(debugFrames[handI], centerPoint, 5, COLOR_LIGHT_GREEN, 5);
 							printf("\nOOOOOOOOOOOOOOOO");
                             //circle(debugFrames[handI], centerPoint, 5, COLOR_RED, 5);
