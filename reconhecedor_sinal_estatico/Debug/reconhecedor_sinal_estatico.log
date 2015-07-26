@@ -1,12 +1,12 @@
-﻿Build started 26/07/2015 01:54:08.
+﻿Build started 26/07/2015 16:19:42.
      1>Project "E:\Leo\Documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\reconhecedor_sinal_estatico.unsuccessfulbuild" because "AlwaysCreate" was specified.
        ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\OpenNI\Include" /IE:\Leo\Documents\tcc\opencv\install\include /IE:\Leo\Documents\tcc\reconhecedor_sinal_estatico\include /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt reconhecedorSinaisEstaticos.cpp
          reconhecedorSinaisEstaticos.cpp
-     1>e:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(149): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>e:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(150): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>e:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(174): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>e:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(175): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
        ManifestResourceCompile:
          All outputs are up-to-date.
        Link:
@@ -27,4 +27,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:01.32
+Time Elapsed 00:00:01.29

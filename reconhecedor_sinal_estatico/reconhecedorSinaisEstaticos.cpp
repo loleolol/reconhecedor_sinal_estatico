@@ -9,6 +9,8 @@
 
 using namespace std;
 using namespace cv;
+//define o modo de operação da aplicação
+const unsigned int TREINAMENTO = 0;
 //define a resolucao do kinect
 const unsigned int XRES = 640;
 const unsigned int YRES = 480;
@@ -17,16 +19,26 @@ const unsigned int ROI_OFFSET = 70;
 //define o valor para extração da coloração produzida pela disparidade
 const unsigned int COLOR_OFFSET = 170;
 //define a quantidade de repetições para coletas
-const unsigned int REPETICAO = 2;
+const unsigned int REPETICAO = 20;
+//define o índice das duas mãos
+const unsigned int MAO_ESQUERDA = 1;
+const unsigned int MAO_DIREITA = 0;
+//define os sinais reconhecidos
+const float SINAL_B = 1.0;
+const float SINAL_A = 2.0;
+const float SINAL_NADA = -1.0;
+//define a quantidade de repetições para delay da predição SVM
+const unsigned int DELAY = 10;
 //define o sensor para captura do esqueleto via OpenNI/PrimeSense
 SkeletonSensor* sensor;
 //define o classificador SVM (Support Vector Machines)
 CvSVM svm;
 CvSVMParams params;
 //define a referência para as janelas de saída
-string frameProfundidade = "frameProfundidade";
-string frameMaoEsquerda = "frameMaoEsquerda";
-string frameMaoDireita = "frameMaoDireita";
+string frameImagem = "Imagem";
+string frameProfundidade = "Profundidade";
+string frameMaoEsquerda = "MaoEsquerda";
+string frameMaoDireita = "MaoDireita";
 
 //coloriza a disparidade obtida com câmera de profundidade
 //função retirada de exemplo do OpenCV
@@ -99,8 +111,7 @@ int main(int argc, char** argv)
 
 	//objeto Mat que recebe os dados de profundidade do kinect
     Mat depthShow(YRES, XRES, CV_8UC1);
-
-	//DESABILITAR O CÓDIGO ABAIXO QUANDO PARA NÃO PREJUDICAR O EXPERIMENTO
+	Mat bgrImage;
 	//área dos frames das mãos
 	int area = 140*140;
 	Mat dadosTreinamento(REPETICAO, area, CV_32FC1);
@@ -116,21 +127,35 @@ int main(int argc, char** argv)
     vector<Mat> debugFrames;
 
 	//cria os frames que serão usados
+	namedWindow(frameImagem, CV_WINDOW_AUTOSIZE);
     namedWindow(frameProfundidade, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoEsquerda, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoDireita, CV_WINDOW_AUTOSIZE);
 
 	//interação com o teclado
 	int teclado = 0;
-    
-	while(1) {
+	int delay = -1;
+
+	if (TREINAMENTO == 0) {
+		//carrega o treinamento salvo pelo SVM para classificar os sinais
+		printf("\nTreinamento carregado!\n");
+		svm.load("treinamento_linear.xml");
+	}//if (TREINAMENTO == 0)
+
+	while (1) {
         sensor->waitForDeviceUpdateOnUser();
 
 		//captura os dados do kinect para uso com o OpenCV
 		VideoCapture capture(CV_CAP_OPENNI);
 		capture.set(CV_CAP_OPENNI_IMAGE_GENERATOR_OUTPUT_MODE, CV_CAP_OPENNI_VGA_30HZ);
 		capture.grab();
+		capture.retrieve(bgrImage, CV_CAP_OPENNI_BGR_IMAGE);
 		capture.retrieve(depthShow, CV_CAP_OPENNI_DISPARITY_MAP);
+
+		delay++;
+		if (delay > DELAY) {
+			delay = 0;
+		}
 
         for (int indiceMao = 0; indiceMao < 2; indiceMao++) {
             if (sensor->getNumTrackedUsers() > 0) {
@@ -138,11 +163,11 @@ int main(int argc, char** argv)
                 Skeleton esqueleto =  sensor->getSkeleton(sensor->getUID(0));
                 SkeletonPoint mao;
 				//define a mão com base no índice
-                if (indiceMao == 0) {
-                    mao = esqueleto.leftHand;
+                if (indiceMao == MAO_DIREITA) {
+                    mao = esqueleto.leftHand;//direita para o usuário
 				} else {
-					mao = esqueleto.rightHand;
-				}//if (indiceMao == 0)
+					mao = esqueleto.rightHand;//esquerda para o usuário
+				}//if (indiceMao == MAO_DIREITA)
                 if (mao.confidence == 1.0) {
 					//ajusta a região de interesse (mão) pela movimentação
                     if (!maoProximaPerimetro(mao.x, mao.y)) {
@@ -164,7 +189,9 @@ int main(int argc, char** argv)
 				GaussianBlur(validColorDisparityMap, validColorDisparityMap, a, 1); 
 				//medianBlur(handMat, handMat, MEDIAN_BLUR_K);
 
-				int i,j;
+				Mat dadosTeste(1, area, CV_32FC1);
+
+				int i,j,k=0;
 				for (i = 0; i < validColorDisparityMap.rows; i++) {
 					for ( j = 0; j < validColorDisparityMap.cols; j++) {
 						if(validColorDisparityMap.at<Vec3b>(i, j)[2] 
@@ -176,8 +203,29 @@ int main(int argc, char** argv)
 							validColorDisparityMap.at<Vec3b>(i, j)[2] = 0;
 
 						}//if(validColorDisparityMap.at<Vec3b>(i, j)[2] ...
+						float tG = validColorDisparityMap.at<Vec3b>(i, j)[1];
+						float tR = validColorDisparityMap.at<Vec3b>(i, j)[2];
+						dadosTeste.at<float>(0,k++) = (tR+tG);
 					}//for ( j = 0; j < validColorDisparityMap.cols; j++)
 				}//for( i = 0; i < validColorDisparityMap.rows; i++)
+				
+				//realiza a classificação após delay
+				if (TREINAMENTO == 0 && delay == 0) {
+					if (indiceMao == MAO_ESQUERDA) {
+						flip(dadosTeste, dadosTeste, 1);
+						printf("\nMao esquerda: ");
+					} else {
+						printf("\nMao direita: ");
+					}//if (indiceMao == 1)
+					float resposta = svm.predict(dadosTeste);
+					if (resposta == SINAL_B) {
+						printf("LETRA B");
+					} else if (resposta == SINAL_A) {
+						printf("LETRA A");
+					} else {
+						printf("NADA");
+					}//if (resposta == SINAL_B)
+				}//if (delay == 0)
 
 				debugFrames.push_back(validColorDisparityMap);
 			}//if (sensor->getNumTrackedUsers() > 0)
@@ -185,7 +233,7 @@ int main(int argc, char** argv)
 
 		teclado = waitKey(10);
 
-		if (teclado == 'q' || teclado == 'w') {
+		if (teclado == 'q' || teclado == 'w' || teclado == 'e') {
 			int i,j,k=0;
 			for(i = 0; i < debugFrames[0].rows; i++) {
 				for (j = 0; j < debugFrames[0].cols; j++) {
@@ -196,17 +244,21 @@ int main(int argc, char** argv)
 			}//for(i = 0; i < debugFrames[0].rows; i++)
 
 			if (teclado == 'q') {
-				printf("\nFrame capturado para treinamento correto!");
-				label[quantidadeTreinamento] = 1.0;
+				printf("\nFrame capturado para treinamento da letra A!");
+				label[quantidadeTreinamento] = SINAL_A;
+			} else if (teclado == 'w') {
+				printf("\nFrame capturado para treinamento da letra B!");
+				label[quantidadeTreinamento] = SINAL_B;
 			} else {
-				printf("\nFrame capturado para treinamento errado!");
-				label[quantidadeTreinamento] = -1.0;
+				printf("\nFrame capturado para treinamento de casos errados!");
+				label[quantidadeTreinamento] = SINAL_NADA;
 			}
 			quantidadeTreinamento++;
 		} else if (teclado == 'z') {
 			break;
 		}//if (teclado == 27 || teclado == 'q')
 
+		imshow(frameImagem, bgrImage);
         imshow(frameProfundidade, depthShow);
         
         if (debugFrames.size() >= 2) {
@@ -216,9 +268,7 @@ int main(int argc, char** argv)
             imshow(frameMaoEsquerda,  debugFrames[1]);
             debugFrames.clear();
         }//if (debugFrames.size() >= 2)
-
-
-    }
+    }//while (1)
 
 	Mat labelTreinamento(REPETICAO, 1, CV_32FC1, label);
 
@@ -228,6 +278,7 @@ int main(int argc, char** argv)
 
 	svm.train(dadosTreinamento, labelTreinamento, Mat(), Mat(), params);
 
+	printf("\nGravando treinamento!");
 	svm.save("treinamento_linear.xml");
 
 	//printf("\n salvando treinamento");
@@ -245,195 +296,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
-
-/*#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/ml/ml.hpp>
-#include <iostream>
-#include <string>
-
-using namespace cv;
-using namespace std;
-
-int main()
-{
-    Mat rawTreinamento;
-	cv::FileStorage file("treinamento1_esq.xml", FileStorage::READ);
-	file["MaoEsquerda"] >> rawTreinamento;
-
-	if (!file.isOpened()) {
-		printf("\n aeheauheua");
-	}
-
-	int area = 140*140;
-	Mat dadosTreinamento(2, area, CV_32FC1);
-
-	int i,j,k=0;
-	for(i = 0; i < rawTreinamento.rows; i++) {
-		for (j = 0; j < rawTreinamento.cols; j++) {
-			float B = 0;
-			float G = rawTreinamento.at<Vec3b>(i, j)[1];
-			float R = rawTreinamento.at<Vec3b>(i, j)[2];
-			dadosTreinamento.at<float>(1,k) = B;
-			dadosTreinamento.at<float>(0,k++) = (R+G);
-		}
-	}
-
-	float label[2] = {1.0, -1.0};
-	Mat labelTreinamento(2, 1, CV_32FC1, label); 
-//system("PAUSE");
-    
-	CvSVMParams params;
-    params.svm_type    = CvSVM::C_SVC;
-    params.kernel_type = CvSVM::LINEAR;
-    params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
-
-	//printf("%d %d", dadosTreinamento.size(), labelTreinamento.size());
-//	system("PAUSE");
-    CvSVM SVM;
-    SVM.train(dadosTreinamento, labelTreinamento, Mat(), Mat(), params);
-	
-	Mat teste(1, area, CV_32FC1);
-	Mat teste2(1, area, CV_32FC1);
-	k = 0;
-	for(i = 0; i < rawTreinamento.rows; i++) {
-		for (j = 0; j < rawTreinamento.cols; j++) {
-			float B = 0;
-			float G = rawTreinamento.at<Vec3b>(i, j)[1];
-			float R = rawTreinamento.at<Vec3b>(i, j)[2];
-			teste2.at<float>(0,k) = B;
-			teste.at<float>(0,k++) = (R+G);
-		}
-	}
-
-	float response = SVM.predict(teste);
-	cout << response << endl;
-	response = SVM.predict(teste2);
-	cout << response << endl;
-	system("PAUSE");
-	/*
-    // Set up training data
-    float labels[4] = {1.0, -1.0, -1.0, -1.0};
-    Mat labelsMat(4, 1, CV_32FC1, labels);
-	//float trainingData[4][2] = { {501, 10}, {255, 10}, {501, 255}, {10, 501} };
-    //Mat trainingDataMat(4, 2, CV_32FC1, trainingData);
-
-    // Set up SVM's parameters
-    CvSVMParams params;
-    params.svm_type    = CvSVM::C_SVC;
-    params.kernel_type = CvSVM::LINEAR;
-    params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
-
-    // Train the SVM
-    CvSVM SVM;
-    SVM.train(trainingDataMat, labelsMat, Mat(), Mat(), params);
-
-    Vec3b green(0,255,0), blue (255,0,0);
-    // Show the decision regions given by the SVM
-    for (int i = 0; i < image.rows; ++i)
-        for (int j = 0; j < image.cols; ++j)
-        {
-            Mat sampleMat = (Mat_<float>(1,2) << j,i);
-            float response = SVM.predict(sampleMat);
-
-            if (response == 1)
-                image.at<Vec3b>(i,j)  = green;
-            else if (response == -1)
-                 image.at<Vec3b>(i,j)  = blue;
-        }
-
-    // Show the training data
-    int thickness = -1;
-    int lineType = 8;
-    circle( image, Point(501,  10), 5, Scalar(  0,   0,   0), thickness, lineType);
-    circle( image, Point(255,  10), 5, Scalar(255, 255, 255), thickness, lineType);
-    circle( image, Point(501, 255), 5, Scalar(255, 255, 255), thickness, lineType);
-    circle( image, Point( 10, 501), 5, Scalar(255, 255, 255), thickness, lineType);
-
-    // Show support vectors
-    thickness = 2;
-    lineType  = 8;
-    int c     = SVM.get_support_vector_count();
-
-    for (int i = 0; i < c; ++i)
-    {
-        const float* v = SVM.get_support_vector(i);
-        circle( image,  Point( (int) v[0], (int) v[1]),   6,  Scalar(128, 128, 128), thickness, lineType);
-    }
-
-    imwrite("result.png", image);        // save the image
-
-    imshow("SVM Simple Example", image); // show it to the user
-    waitKey(0);
-
-}*/
-
-
-
-				/*Mat handCpy = handMat.clone();
-				std::vector< std::vector<Point> > contours;
-				//findContours(handCpy, contours, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
-				findContours(handCpy, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
-				if (contours.size()) {
-					for (int i = 0; i < contours.size(); i++) {
-						vector<Point> contour = contours[i];
-						Mat contourMat = Mat(contour);
-						double cArea = contourArea(contourMat);
-
-						if(cArea > 3000) // likely the hand
-						{
-							Scalar center = mean(contourMat);
-							//Point centerPoint = Point(center.val[0], center.val[1]);
-
-							// approximate the contour by a simple curve
-							vector<Point> approxCurve;
-							approxPolyDP(contourMat, approxCurve, 10, true);
-
-							//vector< vector<Point> > debugContourV;
-							//debugContourV.push_back(approxCurve);
-							//drawContours(debugFrames[indiceMao], debugContourV, 0, COLOR_DARK_GREEN, 2);
-
-							vector<int> hull;
-							convexHull(Mat(approxCurve), hull, false, false);
-
-							// draw the hull points
-							//for(int j = 0; j < hull.size(); j++)
-							//{
-							//   int index = hull[j];
-							//    circle(debugFrames[indiceMao], approxCurve[index], 3, COLOR_YELLOW, 2);
-							//}
-
-							// find convexity defects
-							vector<ConvexityDefect> convexDefects;
-							findConvexityDefects(approxCurve, hull, convexDefects);
-							//printf("Number of defects: %d.\n", (int) convexDefects.size());
-
-							//for(int j = 0; j < convexDefects.size(); j++)
-							//{
-								//circle(debugFrames[indiceMao], convexDefects[j].depth_point, 3, COLOR_BLUE, 2);
-
-							//}
-                        
-							// assemble point set of convex hull
-							vector<Point> hullPoints;
-							for(int k = 0; k < hull.size(); k++)
-							{
-								int curveIndex = hull[k];
-								Point p = approxCurve[curveIndex];
-								hullPoints.push_back(p);
-							}
-
-							// area of hull and curve
-							double hullArea  = contourArea(Mat(hullPoints));
-							double curveArea = contourArea(Mat(approxCurve));
-							double handRatio = curveArea/hullArea;
-							//printf("\n %d", handRatio);
-							// hand is grasping
-							if(handRatio <= GRASPING_THRESH && convexDefects.size() > 0)
-								//circle(debugFrames[indiceMao], centerPoint, 5, COLOR_LIGHT_GREEN, 5);
-								printf("\nOOOOOOOOOOOOOOOO %d | %d", convexDefects.size(), hull.size());
-								//circle(debugFrames[indiceMao], centerPoint, 5, COLOR_RED, 5);
-						}
-					} // contour conditional
-				} // hands loop*/
