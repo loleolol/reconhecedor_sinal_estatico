@@ -9,8 +9,6 @@
 
 using namespace std;
 using namespace cv;
-//define o modo de operação da aplicação
-const unsigned int TREINAMENTO = 0;
 //define a resolucao do kinect
 const unsigned int XRES = 640;
 const unsigned int YRES = 480;
@@ -19,13 +17,17 @@ const unsigned int ROI_OFFSET = 70;
 //define o valor para extração da coloração produzida pela disparidade
 const unsigned int COLOR_OFFSET = 170;
 //define a quantidade de repetições para coletas
-const unsigned int REPETICAO = 20;
+const unsigned int REPETICAO = 30;
 //define o índice das duas mãos
 const unsigned int MAO_ESQUERDA = 1;
 const unsigned int MAO_DIREITA = 0;
+//define os índices das escalas BGR
+const unsigned int B = 0;
+const unsigned int G = 1;
+const unsigned int R = 2;
 //define os sinais reconhecidos
-const float SINAL_B = 1.0;
-const float SINAL_A = 2.0;
+const float SINAL_A = 1.0;
+const float SINAL_B = 2.0;
 const float SINAL_NADA = -1.0;
 //define a quantidade de repetições para delay da predição SVM
 const unsigned int DELAY = 10;
@@ -104,14 +106,17 @@ bool maoProximaPerimetro(float x, float y)
 
 int main(int argc, char** argv)
 {
+	//define o modo de operação da aplicação
+	int TREINAMENTO = 1;
+
     //inicialização do kinect pelo driver e do sensor de esqueleto
     sensor = new SkeletonSensor();
     sensor->initialize();
     sensor->setPointModeToProjective();
 
 	//objeto Mat que recebe os dados de profundidade do kinect
-    Mat depthShow(YRES, XRES, CV_8UC1);
-	Mat bgrImage;
+    Mat mapaProfundidade(YRES, XRES, CV_8UC1);
+	Mat imagemBGR;
 	//área dos frames das mãos
 	int area = 140*140;
 	Mat dadosTreinamento(REPETICAO, area, CV_32FC1);
@@ -136,11 +141,9 @@ int main(int argc, char** argv)
 	int teclado = 0;
 	int delay = -1;
 
-	if (TREINAMENTO == 0) {
-		//carrega o treinamento salvo pelo SVM para classificar os sinais
-		printf("\nTreinamento carregado!\n");
-		svm.load("treinamento_linear.xml");
-	}//if (TREINAMENTO == 0)
+	//carrega o treinamento salvo pelo SVM para classificar os sinais
+	printf("\nTreinamento existente carregado!\n");
+	svm.load("treinamento_linear.xml");
 
 	while (1) {
         sensor->waitForDeviceUpdateOnUser();
@@ -149,9 +152,8 @@ int main(int argc, char** argv)
 		VideoCapture capture(CV_CAP_OPENNI);
 		capture.set(CV_CAP_OPENNI_IMAGE_GENERATOR_OUTPUT_MODE, CV_CAP_OPENNI_VGA_30HZ);
 		capture.grab();
-		capture.retrieve(bgrImage, CV_CAP_OPENNI_BGR_IMAGE);
-		capture.retrieve(depthShow, CV_CAP_OPENNI_DISPARITY_MAP);
-
+		capture.retrieve(imagemBGR, CV_CAP_OPENNI_BGR_IMAGE);
+		capture.retrieve(mapaProfundidade, CV_CAP_OPENNI_DISPARITY_MAP);
 		delay++;
 		if (delay > DELAY) {
 			delay = 0;
@@ -176,43 +178,53 @@ int main(int argc, char** argv)
                     }//if (!maoProximaPerimetro(mao.x, mao.y))
                 }//if (mao.confidence == 1.0)
 
-				Mat colorDisparityMap;
-				Mat validColorDisparityMap;
-				Mat handMat(depthShow, roi);
+				Mat mapaDisparidadeColorido;
+				Mat mapaDisparidadeColoridoValido;
+				Mat mapaMao(mapaProfundidade, roi);
 
 				//coloriza a disparidade encontrada pela câmera de profundidade
-				colorizeDisparity(handMat, colorDisparityMap, -1);
-				colorDisparityMap.copyTo(validColorDisparityMap, handMat != 0);
+				colorizeDisparity(mapaMao, mapaDisparidadeColorido, -1);
+				mapaDisparidadeColorido.copyTo(mapaDisparidadeColoridoValido, mapaMao != 0);
 				
 				//aplica um blur pra tentar conter o ruído
 				cv::Size a(1,1);
-				GaussianBlur(validColorDisparityMap, validColorDisparityMap, a, 1); 
-				//medianBlur(handMat, handMat, MEDIAN_BLUR_K);
+				GaussianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a, 1); 
+				//medianBlur(mapaMao, mapaMao, MEDIAN_BLUR_K);
+
+				int i,j;
+				for (i = 0; i < mapaDisparidadeColoridoValido.rows; i++) {
+					for (j = 0; j < mapaDisparidadeColoridoValido.cols; j++) {
+						if(mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] 
+						< (mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[B])+COLOR_OFFSET
+						|| mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] 
+						< (mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[G])+COLOR_OFFSET) {
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[B] = 0;
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[G] = 0;
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] = 0;
+						}//if(mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] ...
+					}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
+				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+
+				//clona o mapa para poder inverter, no reconhecimento da mão esquerda
+				Mat mapaTemporario = mapaDisparidadeColoridoValido.clone();
+
+				if (indiceMao == MAO_ESQUERDA) {
+					flip(mapaTemporario, mapaTemporario, 1);
+				}//if (indiceMao == MAO_ESQUERDA)
 
 				Mat dadosTeste(1, area, CV_32FC1);
-
-				int i,j,k=0;
-				for (i = 0; i < validColorDisparityMap.rows; i++) {
-					for ( j = 0; j < validColorDisparityMap.cols; j++) {
-						if(validColorDisparityMap.at<Vec3b>(i, j)[2] 
-						< (validColorDisparityMap.at<Vec3b>(i, j)[0])+COLOR_OFFSET
-						|| validColorDisparityMap.at<Vec3b>(i, j)[2] 
-						< (validColorDisparityMap.at<Vec3b>(i, j)[1])+COLOR_OFFSET) {
-							validColorDisparityMap.at<Vec3b>(i, j)[0] = 0;
-							validColorDisparityMap.at<Vec3b>(i, j)[1] = 0;
-							validColorDisparityMap.at<Vec3b>(i, j)[2] = 0;
-
-						}//if(validColorDisparityMap.at<Vec3b>(i, j)[2] ...
-						float tG = validColorDisparityMap.at<Vec3b>(i, j)[1];
-						float tR = validColorDisparityMap.at<Vec3b>(i, j)[2];
+				int k=0;
+				for (i = 0; i < mapaTemporario.rows; i++) {
+					for ( j = 0; j < mapaTemporario.cols; j++) {
+						float tG = mapaTemporario.at<Vec3b>(i, j)[G];
+						float tR = mapaTemporario.at<Vec3b>(i, j)[R];
 						dadosTeste.at<float>(0,k++) = (tR+tG);
-					}//for ( j = 0; j < validColorDisparityMap.cols; j++)
-				}//for( i = 0; i < validColorDisparityMap.rows; i++)
-				
+					}//for ( j = 0; j < mapaTemporario.cols; j++)
+				}//for( i = 0; i < mapaTemporario.rows; i++)
+			
 				//realiza a classificação após delay
 				if (TREINAMENTO == 0 && delay == 0) {
 					if (indiceMao == MAO_ESQUERDA) {
-						flip(dadosTeste, dadosTeste, 1);
 						printf("\nMao esquerda: ");
 					} else {
 						printf("\nMao direita: ");
@@ -227,7 +239,7 @@ int main(int argc, char** argv)
 					}//if (resposta == SINAL_B)
 				}//if (delay == 0)
 
-				debugFrames.push_back(validColorDisparityMap);
+				debugFrames.push_back(mapaDisparidadeColoridoValido);
 			}//if (sensor->getNumTrackedUsers() > 0)
         }//for (int indiceMao = 0; indiceMao < 2; indiceMao++)
 
@@ -254,12 +266,20 @@ int main(int argc, char** argv)
 				label[quantidadeTreinamento] = SINAL_NADA;
 			}
 			quantidadeTreinamento++;
+		} else if (teclado == 'x') {
+			if (TREINAMENTO == 0) {
+				printf("\nIniciando novo treinamento!");
+				TREINAMENTO = 1;
+			} else {
+				printf("\nIniciando reconhecimento!");
+				TREINAMENTO = 0;
+			}//if (TREINAMENTO == 0)
 		} else if (teclado == 'z') {
 			break;
 		}//if (teclado == 27 || teclado == 'q')
 
-		imshow(frameImagem, bgrImage);
-        imshow(frameProfundidade, depthShow);
+		imshow(frameImagem, imagemBGR);
+        imshow(frameProfundidade, mapaProfundidade);
         
         if (debugFrames.size() >= 2) {
             resize(debugFrames[0], debugFrames[0], Size(), 3, 3);
@@ -270,17 +290,18 @@ int main(int argc, char** argv)
         }//if (debugFrames.size() >= 2)
     }//while (1)
 
-	Mat labelTreinamento(REPETICAO, 1, CV_32FC1, label);
+	if (TREINAMENTO == 1) {
+		Mat labelTreinamento(REPETICAO, 1, CV_32FC1, label);
 
-	params.svm_type    = CvSVM::C_SVC;
-	params.kernel_type = CvSVM::LINEAR;
-	params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+		params.svm_type    = CvSVM::C_SVC;
+		params.kernel_type = CvSVM::LINEAR;
+		params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
 
-	svm.train(dadosTreinamento, labelTreinamento, Mat(), Mat(), params);
+		svm.train(dadosTreinamento, labelTreinamento, Mat(), Mat(), params);
 
-	printf("\nGravando treinamento!");
-	svm.save("treinamento_linear.xml");
-
+		printf("\nGravando treinamento!");
+		svm.save("treinamento_linear.xml");
+	}//if (TREINAMENTO == 1)
 	//printf("\n salvando treinamento");
 	// Declare what you need
 	//cv::FileStorage file("treinamento1_esq.xml", cv::FileStorage::WRITE);
