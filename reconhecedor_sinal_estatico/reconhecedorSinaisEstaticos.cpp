@@ -31,6 +31,8 @@ const float SINAL_B = 2.0;
 const float SINAL_NADA = -1.0;
 //define a quantidade de repetições para delay da predição SVM
 const unsigned int DELAY = 10;
+
+const Scalar COLOR_LIGHT_GREEN = Scalar(0,255,0);
 //define o sensor para captura do esqueleto via OpenNI/PrimeSense
 SkeletonSensor* sensor;
 //define o classificador SVM (Support Vector Machines)
@@ -41,6 +43,7 @@ string frameImagem = "Imagem";
 string frameProfundidade = "Profundidade";
 string frameMaoEsquerda = "MaoEsquerda";
 string frameMaoDireita = "MaoDireita";
+string window = "window";
 
 //coloriza a disparidade obtida com câmera de profundidade
 //função retirada de exemplo do OpenCV
@@ -122,6 +125,8 @@ int main(int argc, char** argv)
 	Mat dadosTreinamento(REPETICAO, area, CV_32FC1);
 	float label[REPETICAO];
 	int quantidadeTreinamento = 0;
+	//cor da borda
+	Scalar color = Scalar(255,255,255);
 
     //retângulo para extração da região das mãos
     Rect roi;
@@ -136,7 +141,6 @@ int main(int argc, char** argv)
     namedWindow(frameProfundidade, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoEsquerda, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoDireita, CV_WINDOW_AUTOSIZE);
-
 	//interação com o teclado
 	int teclado = 0;
 	int delay = -1;
@@ -177,7 +181,6 @@ int main(int argc, char** argv)
                         roi.y = mao.y - ROI_OFFSET;
                     }//if (!maoProximaPerimetro(mao.x, mao.y))
                 }//if (mao.confidence == 1.0)
-
 				Mat mapaDisparidadeColorido;
 				Mat mapaDisparidadeColoridoValido;
 				Mat mapaMao(mapaProfundidade, roi);
@@ -186,11 +189,12 @@ int main(int argc, char** argv)
 				colorizeDisparity(mapaMao, mapaDisparidadeColorido, -1);
 				mapaDisparidadeColorido.copyTo(mapaDisparidadeColoridoValido, mapaMao != 0);
 				
+				//applyColorMap(mapaMao, mapaDisparidadeColoridoValido, COLORMAP_BONE);
 				//aplica um blur pra tentar conter o ruído
-				cv::Size a(1,1);
-				GaussianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a, 1); 
-				//medianBlur(mapaMao, mapaMao, MEDIAN_BLUR_K);
-
+				//cv::Size a(5,5);
+				//GaussianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a, 1); 
+				//blur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a);
+				medianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, 5);
 				int i,j;
 				for (i = 0; i < mapaDisparidadeColoridoValido.rows; i++) {
 					for (j = 0; j < mapaDisparidadeColoridoValido.cols; j++) {
@@ -204,7 +208,52 @@ int main(int argc, char** argv)
 						}//if(mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] ...
 					}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
 				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+							
+				Mat canny_output;
+				threshold(mapaDisparidadeColoridoValido, canny_output, 127, 255, 3);
+				Canny(canny_output, canny_output, 100, 100*2);
+				std::vector<std::vector<Point>> contours;
+				findContours(canny_output, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+				//resize(canny_output, canny_output, Size(), 3, 3);
+				//imshow(window, canny_output);
 
+				if (contours.size()) {
+					for (int i = 0; i < contours.size(); i++) {
+						
+						drawContours( mapaDisparidadeColoridoValido, contours, i, color, 2, 8, noArray(), 0, Point() );
+
+						vector<Point> contour = contours[i];
+						Mat contourMat = Mat(contour);
+						double cArea = contourArea(contourMat);
+
+						if (cArea > 50) {
+							Scalar center = mean(contourMat);
+							Point centerPoint = Point(center.val[0], center.val[1]);
+							circle(mapaDisparidadeColoridoValido, centerPoint, 2, COLOR_LIGHT_GREEN, 2);
+
+							vector<Point> approxCurve;
+							approxPolyDP(contourMat, approxCurve, 10, true);
+							vector<int> hull;
+							convexHull(Mat(approxCurve), hull, false, false);
+							Mat convexDefects;
+							convexityDefects(contourMat, hull, convexDefects);
+
+							for(int j = 0; j < convexDefects.size().width; j++) {
+								int k = (int)convexDefects.at<Vec4i>(j)[2];
+								Point p(contour[k]);
+								circle(mapaDisparidadeColoridoValido, p, 3, COLOR_LIGHT_GREEN, 2);
+
+							}
+
+						}
+					}
+				}
+
+				//Mat handMat;
+				//colorizeDisparity(mapaMao, handMat, -1);
+				//Mat handMat = mapaMao.clone();
+				//findContours(mapaDisparidadeColoridoValido, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+				
 				//clona o mapa para poder inverter, no reconhecimento da mão esquerda
 				Mat mapaTemporario = mapaDisparidadeColoridoValido.clone();
 
