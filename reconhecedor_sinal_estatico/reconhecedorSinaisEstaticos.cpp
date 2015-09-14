@@ -209,44 +209,59 @@ int main(int argc, char** argv)
 					}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
 				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
 							
-				Mat canny_output;
-				threshold(mapaDisparidadeColoridoValido, canny_output, 127, 255, 3);
-				Canny(canny_output, canny_output, 100, 100*2);
-				std::vector<std::vector<Point>> contours;
-				findContours(canny_output, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+				Mat mapaCannyEdge;
+				cvtColor(mapaDisparidadeColoridoValido, mapaCannyEdge, CV_BGR2GRAY);
+				threshold(mapaCannyEdge, mapaCannyEdge, 50, 255, THRESH_BINARY+THRESH_OTSU);
+				Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*2);
+
+				std::vector<std::vector<Point>> contornos;
+				findContours(mapaCannyEdge, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
 				//resize(canny_output, canny_output, Size(), 3, 3);
-				//imshow(window, canny_output);
+				
 
-				if (contours.size()) {
-					for (int i = 0; i < contours.size(); i++) {
-						
-						drawContours( mapaDisparidadeColoridoValido, contours, i, color, 2, 8, noArray(), 0, Point() );
+				if (contornos.size()) {
+					int indiceMaior = 0;
+					double maiorArea = 0;
+					double area;
 
-						vector<Point> contour = contours[i];
-						Mat contourMat = Mat(contour);
-						double cArea = contourArea(contourMat);
+					for (int i = 0; i < contornos.size(); i++) {
+						drawContours(mapaDisparidadeColoridoValido, contornos, i, color, 2, 8, noArray(), 0, Point() );
 
-						if (cArea > 50) {
-							Scalar center = mean(contourMat);
-							Point centerPoint = Point(center.val[0], center.val[1]);
-							circle(mapaDisparidadeColoridoValido, centerPoint, 2, COLOR_LIGHT_GREEN, 2);
+						area = contourArea(contornos[i]);
 
-							vector<Point> approxCurve;
-							approxPolyDP(contourMat, approxCurve, 10, true);
-							vector<int> hull;
-							convexHull(Mat(approxCurve), hull, false, false);
-							Mat convexDefects;
-							convexityDefects(contourMat, hull, convexDefects);
+						if (maiorArea < area) {
+							indiceMaior = i;
+							maiorArea = area;
+						}//if (maiorArea > cArea)
+					}//for (int i = 0; i < contornos.size(); i++)
 
-							for(int j = 0; j < convexDefects.size().width; j++) {
-								int k = (int)convexDefects.at<Vec4i>(j)[2];
-								Point p(contour[k]);
-								circle(mapaDisparidadeColoridoValido, p, 3, COLOR_LIGHT_GREEN, 2);
+					
+					vector<Point> contorno = contornos[indiceMaior];
+					area = contourArea(contorno);
 
-							}
+					Scalar centro = mean(Mat(contorno));
+					Point pontoCentral = Point(centro.val[0], centro.val[1]);
+					circle(mapaDisparidadeColoridoValido, pontoCentral, 2, COLOR_LIGHT_GREEN, 2);
 
-						}
+					//vector<Point> curva;
+					//approxPolyDP(mapaContorno, curva, 10, true);
+					vector<vector<Point>> corpo(contornos.size());
+					vector<vector<int>> corpoI(contornos.size());
+					convexHull(contorno, corpo[0], false);
+					convexHull(contorno, corpoI[0], false);
+					
+					drawContours(mapaDisparidadeColoridoValido, corpo, 0, COLOR_LIGHT_GREEN, 1, 8, vector<Vec4i>(), 0, Point());
+
+					vector<vector<Vec4i>> defeitosConvexos(contornos.size());
+					convexityDefects(Mat(contornos[indiceMaior]), corpoI[0], defeitosConvexos[0]);
+					
+					for(int j = 0; j < defeitosConvexos[0].size(); j++) {
+						int k = defeitosConvexos[0][j].val[2];
+						Point p(contorno[k]);
+						circle(mapaDisparidadeColoridoValido, p, 3, COLOR_LIGHT_GREEN, 2);
+
 					}
+
 				}
 
 				//Mat handMat;

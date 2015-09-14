@@ -1,4 +1,4 @@
-﻿Build started 08/09/2015 23:59:30.
+﻿Build started 14/09/2015 01:15:27.
      1>Project "D:\Leo\Documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\reconhecedor_sinal_estatico.unsuccessfulbuild" because "AlwaysCreate" was specified.
@@ -7,9 +7,10 @@
          reconhecedorSinaisEstaticos.cpp
      1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(180): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
      1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(181): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(222): warning C4018: '<' : signed/unsigned mismatch
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(232): warning C4244: 'argument' : conversion from 'double' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(232): warning C4244: 'argument' : conversion from 'double' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(227): warning C4018: '<' : signed/unsigned mismatch
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(243): warning C4244: 'argument' : conversion from 'double' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(243): warning C4244: 'argument' : conversion from 'double' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(258): warning C4018: '<' : signed/unsigned mismatch
        ManifestResourceCompile:
          All outputs are up-to-date.
        Link:
@@ -30,4 +31,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:01.54
+Time Elapsed 00:00:01.66
