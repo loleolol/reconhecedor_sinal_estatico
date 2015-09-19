@@ -30,9 +30,10 @@ const float SINAL_A = 1.0;
 const float SINAL_B = 2.0;
 const float SINAL_NADA = -1.0;
 //define a quantidade de repetições para delay da predição SVM
-const unsigned int DELAY = 10;
+const unsigned int DELAY = 0;
 
 const Scalar COLOR_LIGHT_GREEN = Scalar(0,255,0);
+const Scalar COLOR_BLUE        = Scalar(240,40,0);
 //define o sensor para captura do esqueleto via OpenNI/PrimeSense
 SkeletonSensor* sensor;
 //define o classificador SVM (Support Vector Machines)
@@ -209,39 +210,98 @@ int main(int argc, char** argv)
 					}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
 				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
 							
-				Mat mapaCannyEdge;
-				cvtColor(mapaDisparidadeColoridoValido, mapaCannyEdge, CV_BGR2GRAY);
-				threshold(mapaCannyEdge, mapaCannyEdge, 50, 255, THRESH_BINARY+THRESH_OTSU);
-				Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*2);
 
+				//converte para cinza
+				Mat mapaThreshold;
+				cvtColor(mapaDisparidadeColoridoValido, mapaThreshold, CV_BGR2GRAY);
+				//Otsu threshold, adaptável, indetifica automático o nível adequado
+				threshold(mapaThreshold, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
+				//Canny edge detection pra detecção de borda
+				//Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*3, 4);
+
+				//busca os contornos, possívelmente interrompidos por ruído
 				std::vector<std::vector<Point>> contornos;
-				findContours(mapaCannyEdge, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
-				//resize(canny_output, canny_output, Size(), 3, 3);
+				findContours(mapaThreshold, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 				
-
 				if (contornos.size()) {
+					//desenhar todos os contornos com borda mais grossa, tentando unir os objetos separados por ruído
+					//for (int i = 0; i < contornos.size(); i++) {
+						//drawContours(mapaCannyEdge, contornos, i, color, 2, 8, noArray(), 0, Point() );
+						//drawContours(mapaDisparidadeColoridoValido, contornos, i, color, 2, 8, noArray(), 0, Point() );
+					//}//for (int i = 0; i < contornos.size(); i++)
+
+					//Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*3, 5);
+					//std::vector<std::vector<Point>> contornos;
+					//busca os contornos novamente
+					//findContours(mapaCannyEdge, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+					
 					int indiceMaior = 0;
 					double maiorArea = 0;
-					double area;
+					double area = 0;
 
 					for (int i = 0; i < contornos.size(); i++) {
-						drawContours(mapaDisparidadeColoridoValido, contornos, i, color, 2, 8, noArray(), 0, Point() );
-
 						area = contourArea(contornos[i]);
-
+							//printf("\n AREA: %f", area);
 						if (maiorArea < area) {
 							indiceMaior = i;
 							maiorArea = area;
 						}//if (maiorArea > cArea)
-					}//for (int i = 0; i < contornos.size(); i++)
+					}
 
-					
+					//drawContours(mapaDisparidadeColoridoValido, contornos, indiceMaior, color, 1, 8, noArray(), 0, Point() );
+					//imshow("eee", mapaDisparidadeColoridoValido);
+					//printf("\n %d: %f", indiceMaior, maiorArea);
 					vector<Point> contorno = contornos[indiceMaior];
 					area = contourArea(contorno);
 
-					Scalar centro = mean(Mat(contorno));
-					Point pontoCentral = Point(centro.val[0], centro.val[1]);
-					circle(mapaDisparidadeColoridoValido, pontoCentral, 2, COLOR_LIGHT_GREEN, 2);
+					Point skel = Point(mao.x, mao.y);
+					circle(mapaProfundidade, skel, 3, COLOR_BLUE, 2);
+					
+					
+					Mat dist(mapaDisparidadeColoridoValido.size(), CV_32FC1);
+					dist.setTo(0);
+					float maxdist = -1;
+					float percMenor = -1;
+						
+					for(int i = 0;i< dist.rows;i++)
+					{
+						for(int j = 0;j< dist.cols;j++)
+						{
+							dist.at<float>(i,j) = pointPolygonTest(contorno, cv::Point(i,j), true);
+						}
+					}
+
+					int ix = 0, jx = 0;
+					for(int i = 0;i< dist.rows;i++)
+					{
+						for(int j = 0;j< dist.cols;j++)
+						{
+							if (dist.at<float>(i,j) > maxdist) {
+								
+								
+									maxdist = dist.at<float>(i,j);
+									ix = i;
+									jx = j;
+
+							}
+						}
+					}
+
+						
+					//double minVal; double maxVal; Point minLoc; Point maxLoc;
+					//cv::minMaxLoc(dist, &minVal, &maxVal, &minLoc, &maxLoc);
+					Point centro = Point(ix, jx);
+					cv::circle(mapaDisparidadeColoridoValido, centro, abs(maxdist), COLOR_BLUE,2,CV_AA);					
+					//imshow("teste2", dist);
+					
+					for (i = (jx+maxdist); i < mapaDisparidadeColoridoValido.rows; i++) {
+						for (j = 0; j < mapaDisparidadeColoridoValido.cols; j++) {
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[B] = 0;
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[G] = 255;
+							mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] = 0;
+						}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
+					}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+
 
 					//vector<Point> curva;
 					//approxPolyDP(mapaContorno, curva, 10, true);
@@ -250,17 +310,19 @@ int main(int argc, char** argv)
 					convexHull(contorno, corpo[0], false);
 					convexHull(contorno, corpoI[0], false);
 					
-					drawContours(mapaDisparidadeColoridoValido, corpo, 0, COLOR_LIGHT_GREEN, 1, 8, vector<Vec4i>(), 0, Point());
+					//drawContours(mapaDisparidadeColoridoValido, corpo, 0, COLOR_LIGHT_GREEN, 1, 8, vector<Vec4i>(), 0, Point());
 
 					vector<vector<Vec4i>> defeitosConvexos(contornos.size());
 					convexityDefects(Mat(contornos[indiceMaior]), corpoI[0], defeitosConvexos[0]);
 					
-					for(int j = 0; j < defeitosConvexos[0].size(); j++) {
+
+
+					/*for(int j = 0; j < defeitosConvexos[0].size(); j++) {
 						int k = defeitosConvexos[0][j].val[2];
 						Point p(contorno[k]);
 						circle(mapaDisparidadeColoridoValido, p, 3, COLOR_LIGHT_GREEN, 2);
 
-					}
+					}*/
 
 				}
 
