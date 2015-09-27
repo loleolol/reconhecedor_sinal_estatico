@@ -1,36 +1,36 @@
-﻿Build started 19/09/2015 13:19:30.
+﻿Build started 27/09/2015 00:21:42.
      1>Project "D:\Leo\Documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\reconhecedor_sinal_estatico.unsuccessfulbuild" because "AlwaysCreate" was specified.
        ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\OpenNI\Include" /ID:\Leo\Documents\tcc\opencv\install\include /ID:\Leo\Documents\tcc\reconhecedor_sinal_estatico\include /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt reconhecedorSinaisEstaticos.cpp
          reconhecedorSinaisEstaticos.cpp
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(181): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(182): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(242): warning C4018: '<' : signed/unsigned mismatch
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(257): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(257): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(270): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(294): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(297): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(297): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(297): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(297): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(299): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(300): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
-     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(301): warning C4258: 'i' : definition from the for loop is ignored; the definition from the enclosing scope is used
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(275) : definition of 'i' ignored
-                 d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(199) : definition of 'i' used
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(203): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(204): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(266): warning C4018: '<' : signed/unsigned mismatch
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(287): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(307): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(310): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(377): warning C4244: '=' : conversion from 'unsigned int' to 'float', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(403): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(403): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(404): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(404): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(405): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(405): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(406): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(406): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(407): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(407): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(408): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(408): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(409): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(409): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(410): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(410): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(411): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(411): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\leo\documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedorsinaisestaticos.cpp(446): warning C4244: '=' : conversion from 'unsigned int' to 'float', possible loss of data
        ManifestResourceCompile:
          All outputs are up-to-date.
        Link:
@@ -51,4 +51,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:01.69
+Time Elapsed 00:00:01.90
