@@ -79,11 +79,13 @@
   <ItemGroup>
     <ClCompile Include="..\include\log.cpp" />
     <ClCompile Include="..\include\SkeletonSensor.cpp" />
+    <ClCompile Include="..\include\svm.cpp" />
     <ClCompile Include="reconhecedorSinaisEstaticos.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\log.hpp" />
     <ClInclude Include="..\include\SkeletonSensor.hpp" />
+    <ClInclude Include="..\include\svm.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

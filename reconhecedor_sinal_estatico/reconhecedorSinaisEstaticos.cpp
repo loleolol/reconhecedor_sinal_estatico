@@ -15,11 +15,9 @@ const unsigned int YRES = 480;
 //define o valor para extração da ROI (Region of Interest)
 const unsigned int ROI_OFFSET = 70;
 //define o valor para extração da coloração produzida pela disparidade
-const unsigned int COLOR_OFFSET = 170;
+const unsigned int COR_OFFSET = 170;
 //define o valor para equalizar números em 3 casas d
 const unsigned int NUMERO_OFFSET = 100;
-//define a quantidade de repetições para coletas
-const unsigned int REPETICAO = 30;
 //define o índice das duas mãos
 const unsigned int MAO_ESQUERDA = 1;
 const unsigned int MAO_DIREITA = 0;
@@ -31,25 +29,20 @@ const unsigned int R = 2;
 const float SINAL_A = 1.0;
 const float SINAL_B = 2.0;
 const float SINAL_NADA = -1.0;
-//define a quantidade de repetições para delay da predição SVM
-const unsigned int DELAY = 0;
+//define a quantidade de repetições para coletas
+const unsigned int REPETICAO = 30;
+//define o kernel a ser utilizado
+//const int SVM_KERNEL = CvSVM::LINEAR;
+//const int SVM_KERNEL = CvSVM::POLY;
+//const int SVM_KERNEL = CvSVM::RBF;
+//define cores
+const Scalar COR_VERDE    = Scalar(0,255,0);
+const Scalar COR_AZUL     = Scalar(240,40,0);
+const Scalar COR_AMARELO  = Scalar(0,128,200);
+const Scalar COR_VERMELHO = Scalar(0,0,255);
+const Scalar COR_BRANCO   = Scalar(255,255,255);
 
-const Scalar COLOR_LIGHT_GREEN = Scalar(0,255,0);
-const Scalar COLOR_BLUE        = Scalar(240,40,0);
-const Scalar COLOR_YELLOW      = Scalar(0,128,200);
-const Scalar COLOR_WHITE       = Scalar(255,255,255);
-const Scalar COLOR_RED         = Scalar(0,0,255);
-//define o sensor para captura do esqueleto via OpenNI/PrimeSense
-SkeletonSensor* sensor;
-//define a referência para as janelas de saída
-string frameImagem = "Imagem";
-string frameProfundidade = "Profundidade";
-string frameMaoEsquerda = "MaoEsquerda";
-string frameMaoDireita = "MaoDireita";
-string window = "window";
-
-//coloriza a disparidade obtida com câmera de profundidade
-//função retirada de exemplo do OpenCV
+//coloriza a disparidade obtida com câmera de profundidade - função retirada de exemplo do OpenCV
 static void colorizeDisparity( const Mat& gray, Mat& rgb, double maxDisp=-1.f, float S=1.f, float V=1.f )
 {
     CV_Assert( !gray.empty() );
@@ -120,56 +113,91 @@ unsigned concatenarNumeros(unsigned a, unsigned b)
     return a * c + b;        
 }//unsigned concatenarNumeros(unsigned a, unsigned b)
 
-//extensão da classe SVM com implementação DAGSVM
-class DAGSVM : public CvSVM {
+//imprime a resposta conforme resultado
+void imprimirResposta(float resposta)
+{
+	if (resposta == SINAL_B) {
+		printf("LETRA B");
+	} else if (resposta == SINAL_A) {
+		printf("LETRA A");
+	} else {
+		printf("NADA");
+	}//if (resposta == SINAL_B)
+}//void imprimirResposta(float resposta)
 
-};
-
-//define o classificador SVM (Support Vector Machines)
-CvSVM svm1vs1;
-DAGSVM dagsvm;
-CvSVMParams params;
+//busca o nome do arquivo para carregar/salvar
+char *buscarNomeArquivo(int kernel)
+{
+	if (kernel == CvSVM::LINEAR) {
+		return "treinamento_1vs1_linear.xml";
+	} else if (kernel == CvSVM::POLY) {
+		return "treinamento_1vs1_polinomial.xml";
+	} else if (kernel == CvSVM::RBF) {
+		return "treinamento_1vs1_radial.xml";
+	}//if (SVM_KERNEL == CvSVM::LINEAR)
+}//string buscarNomeArquivo(int kernel)
 
 int main(int argc, char** argv)
 {
-	//define o modo de operação da aplicação
+	//define o classificador SVM (Support Vector Machines) do OpenCV (1-vs-1)
+	CvSVM linearSVM;
+	CvSVM polinomialSVM;
+	CvSVM radialSVM;
+	CvSVMParams SVMparams;
+	//define a referência para as janelas de saída
+	string frameProfundidade = "Profundidade com Esqueleto";
+	string frameMaoEsquerda = "Mao Esquerda";
+	string frameMaoDireita = "Mao Direita";
+	string frameMaoEsquerdaBGR = "Referencia E BGR";
+	string frameMaoDireitaBGR = "Referencia D BGR";
+
+	//define o modo de operação padrão
 	int TREINAMENTO = 1;
 
+	//define o sensor para captura do esqueleto via OpenNI/PrimeSense
     //inicialização do kinect pelo driver e do sensor de esqueleto
-    sensor = new SkeletonSensor();
+    SkeletonSensor* sensor = new SkeletonSensor();
     sensor->initialize();
     sensor->setPointModeToProjective();
-
-	//objeto Mat que recebe os dados de profundidade do kinect
+	
+	//mapa de profundidade que receberá os dados do kinect
     Mat mapaProfundidade(YRES, XRES, CV_8UC1);
+	//mapa de profundidade sem cor que aceita o desenho do esqueleto colorido
 	Mat mapaProfundidadeEsqueleto(YRES, XRES, CV_32FC1);
-	Mat imagemBGR;
-	//área dos frames das mãos
-	int area = 140*140;
-	Mat dadosTreinamento(REPETICAO, area, CV_32FC1);
-	float label[REPETICAO];
-	int quantidadeTreinamento = 0;
-
+	//mapa da imagem BGR
+	Mat mapaBGR;
     //retângulo para extração da região das mãos
     Rect roi;
     roi.width  = ROI_OFFSET*2;
     roi.height = ROI_OFFSET*2;
 
-    //vetor com a imagem das duas mãos
-    vector<Mat> debugFrames;
+    //vetores com a imagem das duas mãos
+    vector<Mat> mapaMaos, mapaMaosBGR;
+
+	//área dos frames das mãos TODO
+	int areaMapa = 140*140;
+	Mat dadosTreinamento(REPETICAO*2, areaMapa, CV_32FC1);
+	float label[REPETICAO*2];
+	int quantidadeTreinamentoA = 0;
+	int quantidadeTreinamentoB = 0;
+	int quantidadeTreinamento = 0;
 
 	//cria os frames que serão usados
-	namedWindow(frameImagem, CV_WINDOW_AUTOSIZE);
     namedWindow(frameProfundidade, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoEsquerda, CV_WINDOW_AUTOSIZE);
     namedWindow(frameMaoDireita, CV_WINDOW_AUTOSIZE);
+    namedWindow(frameMaoEsquerdaBGR, CV_WINDOW_AUTOSIZE);
+    namedWindow(frameMaoDireitaBGR, CV_WINDOW_AUTOSIZE);
+
 	//interação com o teclado
 	int teclado = 0;
-	int delay = -1;
-
+	
 	//carrega o treinamento salvo pelo SVM para classificar os sinais
+	linearSVM.load(buscarNomeArquivo(CvSVM::LINEAR));
+	polinomialSVM.load(buscarNomeArquivo(CvSVM::POLY));
+	radialSVM.load(buscarNomeArquivo(CvSVM::RBF));
+
 	printf("\nTreinamento existente carregado!\n");
-	svm.load("treinamento_linear.xml");
 
 	while (1) {
         sensor->waitForDeviceUpdateOnUser();
@@ -178,12 +206,8 @@ int main(int argc, char** argv)
 		VideoCapture capture(CV_CAP_OPENNI);
 		capture.set(CV_CAP_OPENNI_IMAGE_GENERATOR_OUTPUT_MODE, CV_CAP_OPENNI_VGA_30HZ);
 		capture.grab();
-		capture.retrieve(imagemBGR, CV_CAP_OPENNI_BGR_IMAGE);
+		capture.retrieve(mapaBGR, CV_CAP_OPENNI_BGR_IMAGE);
 		capture.retrieve(mapaProfundidade, CV_CAP_OPENNI_DISPARITY_MAP);
-		delay++;
-		if (delay > DELAY) {
-			delay = 0;
-		}
 
         for (int indiceMao = 0; indiceMao < 2; indiceMao++) {
             if (sensor->getNumTrackedUsers() > 0) {
@@ -198,35 +222,40 @@ int main(int argc, char** argv)
 					//esquerda para o usuário
 					mao = esqueleto.rightHand;
 				}//if (indiceMao == MAO_DIREITA)
-				
+				//ajusta a região de interesse (mão) pela movimentação
 				if (mao.confidence == 1.0) {
-					//ajusta a região de interesse (mão) pela movimentação
                     if (!maoProximaPerimetro(mao.x, mao.y)) {
                         roi.x = mao.x - ROI_OFFSET;
                         roi.y = mao.y - ROI_OFFSET;
-                    }//if (!maoProximaPerimetro(esqueletoMao.x, esqueletoMao.y))
+                    }//if (!maoProximaPerimetro(mao.x, mao.y))
                 }//if (mao.confidence == 1.0)
-
-				Mat mapaDisparidadeColorido;
+				
+				//mapas coloridos da mão
+				Mat mapaMaoBGR(mapaBGR, roi);
+				mapaMaosBGR.push_back(mapaMaoBGR);
+				//mapas de profundidade da mão
 				Mat mapaMao(mapaProfundidade, roi);
+				Mat mapaDisparidadeColorido;
 
 				//coloriza a disparidade encontrada pela câmera de profundidade
 				colorizeDisparity(mapaMao, mapaDisparidadeColorido, -1);
 				mapaDisparidadeColorido.copyTo(mapaDisparidadeColorido, mapaMao != 0);
 				
-				//applyColorMap(mapaMao, mapaDisparidadeColoridoValido, COLORMAP_BONE);
 				//aplica um blur pra tentar conter o ruído
 				//cv::Size a(5,5);
 				//GaussianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a, 1); 
 				//blur(mapaDisparidadeColorido, mapaDisparidadeColoridoValido, a);
 				medianBlur(mapaDisparidadeColorido, mapaDisparidadeColorido, 5);
+
+				//Descarta a profundidade a partir do OFFSET de cor
+				//o elemento mais próximo (possívelmente a mão) e uma pequena distância a partir dele permancem
 				int i, j;
 				for (i = 0; i < mapaDisparidadeColorido.rows; i++) {
 					for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
 						if(mapaDisparidadeColorido.at<Vec3b>(i, j)[R] 
-						< (mapaDisparidadeColorido.at<Vec3b>(i, j)[B])+COLOR_OFFSET
+						< (mapaDisparidadeColorido.at<Vec3b>(i, j)[B])+COR_OFFSET
 						|| mapaDisparidadeColorido.at<Vec3b>(i, j)[R] 
-						< (mapaDisparidadeColorido.at<Vec3b>(i, j)[G])+COLOR_OFFSET) {
+						< (mapaDisparidadeColorido.at<Vec3b>(i, j)[G])+COR_OFFSET) {
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
@@ -237,34 +266,20 @@ int main(int argc, char** argv)
 				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
 							
 
-				//converte para cinza
+				//converte para cinza para realizar threshold
 				Mat mapaThreshold;
 				cvtColor(mapaDisparidadeColorido, mapaThreshold, CV_BGR2GRAY);
-				//Otsu threshold, adaptável, indetifica automático o nível adequado
+				//threshold de Otsu, adaptável, indetifica automático o nível adequado
 				threshold(mapaThreshold, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
-				//Canny edge detection pra detecção de borda
-				//Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*3, 4);
-
 				//busca os contornos, possívelmente interrompidos por ruído
 				vector<vector<Point>> contornos;
 				findContours(mapaThreshold, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-				
+				//se há contornos
 				if (contornos.size()) {
-					//desenhar todos os contornos com borda mais grossa, tentando unir os objetos separados por ruído
-					//for (int i = 0; i < contornos.size(); i++) {
-						//drawContours(mapaCannyEdge, contornos, i, color, 2, 8, noArray(), 0, Point() );
-						//drawContours(mapaDisparidadeColoridoValido, contornos, i, color, 2, 8, noArray(), 0, Point() );
-					//}//for (int i = 0; i < contornos.size(); i++)
-
-					//Canny(mapaCannyEdge, mapaCannyEdge, 100, 100*3, 5);
-					//std::vector<std::vector<Point>> contornos;
-					//busca os contornos novamente
-					//findContours(mapaCannyEdge, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-					
+					//busca o maior contorno (possívelmente a mão)
 					int indiceMaior = 0;
 					double maiorArea = 0;
 					double area = 0;
-
 					for (i = 0; i < contornos.size(); i++) {
 						area = contourArea(contornos[i]);
 						if (maiorArea < area) {
@@ -272,51 +287,229 @@ int main(int argc, char** argv)
 							maiorArea = area;
 						}//if (maiorArea > cArea)
 					}//for (int i = 0; i < contornos.size(); i++)
-
-					drawContours(mapaDisparidadeColorido, contornos, indiceMaior, COLOR_WHITE, 1, 8, noArray(), 0, Point() );
-
-					vector<Point> contorno = contornos[indiceMaior];
-					area = contourArea(contorno);
-										
-					Mat dist(mapaDisparidadeColorido.size(), CV_32FC1);
-					dist.setTo(0);
-
-					int ix = 0, jx = 0;
-					float maxdist = -1;
-
-					for (i = 0; i < dist.rows; i++) {
-						for (j = 0;j< dist.cols;j++) {
-							dist.at<float>(i,j) = pointPolygonTest(contorno, Point(i,j), true);
+					
+					//desenha o maior contorno encontrado
+					drawContours(mapaDisparidadeColorido, contornos, indiceMaior, COR_BRANCO, 1, 8, noArray(), 0, Point() );
+					
+					//será busca o ponto mais interno do contorno para obter o maior círculo interno (possívelmente a palma/mão)
+					//o objetivo é remover parte do antebraço, devido ao ruído causado por presença ou ausência de diferentes tipos de manga de roupas
+					Mat mapaPontoInterno(mapaDisparidadeColorido.size(), CV_32FC1);
+					mapaPontoInterno.setTo(0);
+					//obtém mapa com as distâncias dos pontos em relação ao contorno
+					for (i = 0; i < mapaPontoInterno.rows; i++) {
+						for (j = 0;j< mapaPontoInterno.cols;j++) {
+							mapaPontoInterno.at<float>(i,j) = pointPolygonTest(contornos[indiceMaior], Point(i,j), true);
 						}//for (j = 0;j< dist.cols;j++)
 					}//for (i = 0; i < dist.rows; i++)
-
-					
-					for (i = 0; i < dist.rows; i++) {
-						for (j = 0; j < dist.cols; j++) {
-							if (dist.at<float>(i,j) > maxdist) {
-								maxdist = dist.at<float>(i,j);
+					//calcular o ponto mais interno do contorno
+					int ix = 0, jx = 0;
+					float distanciaPonto = -1;
+					for (i = 0; i < mapaPontoInterno.rows; i++) {
+						for (j = 0; j < mapaPontoInterno.cols; j++) {
+							if (mapaPontoInterno.at<float>(i,j) > distanciaPonto) {
+								distanciaPonto = mapaPontoInterno.at<float>(i,j);
 								ix = i;
 								jx = j;
 							}//if (dist.at<float>(i,j) > maxdist)
 						}//for (j = 0; j < dist.cols; j++)
 					}//for (i = 0; i < dist.rows; i++)
-
-						
-					//double minVal; double maxVal; Point minLoc; Point maxLoc;
-					//cv::minMaxLoc(dist, &minVal, &maxVal, &minLoc, &maxLoc);
+					//desenha o ponto e o maior círculo interno  						
 					Point centro = Point(ix, jx);
-					circle(mapaDisparidadeColorido, centro, 1, COLOR_BLUE, 1, CV_AA);
-					circle(mapaDisparidadeColorido, centro, abs(maxdist), COLOR_BLUE, 1, CV_AA);					
-					//imshow("teste2", dist);
-					
-					for (i = (jx+maxdist); i < mapaDisparidadeColorido.rows; i++) {
+					circle(mapaDisparidadeColorido, centro, 1, COR_AZUL, 1, CV_AA);
+					circle(mapaDisparidadeColorido, centro, abs(distanciaPonto), COR_AZUL, 1, CV_AA);					
+					//remove o espaço abaixo do círculo, possívelmente o antebraço
+					for (i = (jx+distanciaPonto); i < mapaDisparidadeColorido.rows; i++) {
 						for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
 						}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
 					}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+				}//if (contornos.size()) {
 
+				//clona o mapa para poder inverter, no reconhecimento da mão esquerda, visto que o treinamento é com a mão direita
+				Mat mapaTemporario = mapaDisparidadeColorido.clone();
+				if (indiceMao == MAO_ESQUERDA) {
+					flip(mapaTemporario, mapaTemporario, 1);
+				}//if (indiceMao == MAO_ESQUERDA)
+
+				//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
+				//será utilizado pelo SVM
+				Mat dadosTeste(1, areaMapa, CV_32FC1);
+				int k = 0;
+				for (i = 0; i < mapaTemporario.rows; i++) {
+					for (j = 0; j < mapaTemporario.cols; j++) {
+						int tR = mapaTemporario.at<Vec3b>(i, j)[R];
+						int tG = mapaTemporario.at<Vec3b>(i, j)[G];
+						int tB = mapaTemporario.at<Vec3b>(i, j)[B];
+						dadosTeste.at<float>(0, k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
+					}//for ( j = 0; j < mapaTemporario.cols; j++)
+				}//for( i = 0; i < mapaTemporario.rows; i++)
+				
+				//usa o svm e imprime o resultado
+				if (TREINAMENTO == 0) {
+					if (indiceMao == MAO_DIREITA) {
+						printf("\n\nReconhecimento\nMao direita:");
+						printf("\nSVM (1vs1)\nLINEAR: ");
+						imprimirResposta(linearSVM.predict(dadosTeste));
+						printf("\nPOLINOMIAL: ");
+						imprimirResposta(polinomialSVM.predict(dadosTeste));
+						printf("\nRADIAL: ");
+						imprimirResposta(radialSVM.predict(dadosTeste));
+					} else {
+						printf("\nMao esquerda: ");
+						printf("\nSVM (1vs1)\nLINEAR: ");
+						imprimirResposta(linearSVM.predict(dadosTeste));
+						printf("\nPOLINOMIAL: ");
+						imprimirResposta(polinomialSVM.predict(dadosTeste));
+						printf("\nRADIAL: ");
+						imprimirResposta(radialSVM.predict(dadosTeste));
+					}//if (indiceMao == 1)
+					
+				}//if (delay == 0)
+
+				//adiciona no vetor de mãos (direita/esquerda)
+				mapaMaos.push_back(mapaDisparidadeColorido);
+				
+				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade
+				cvtColor(mapaProfundidade, mapaProfundidadeEsqueleto, CV_GRAY2BGR);
+				//recebe os pontos pelo kinect
+				Point torso(esqueleto.torso.x, esqueleto.torso.y);
+				Point pescoco(esqueleto.neck.x, esqueleto.neck.y);
+				Point cabeca(esqueleto.head.x, esqueleto.head.y);
+				Point maoEsq = Point(esqueleto.leftHand.x, esqueleto.leftHand.y);
+				Point cotoveloEsq = Point(esqueleto.leftElbow.x, esqueleto.leftElbow.y);
+				Point ombroEsq = Point(esqueleto.leftShoulder.x, esqueleto.leftShoulder.y);
+				Point maoDir = Point(esqueleto.rightHand.x, esqueleto.rightHand.y);
+				Point cotoveloDir = Point(esqueleto.rightElbow.x, esqueleto.rightElbow.y);
+				Point ombroDir = Point(esqueleto.rightShoulder.x, esqueleto.rightShoulder.y);
+				//desenha a estrutura do braço esquerdo
+				circle(mapaProfundidadeEsqueleto, maoEsq, 2, COR_AMARELO, 2);
+				circle(mapaProfundidadeEsqueleto, cotoveloEsq, 2, COR_AMARELO, 2);
+				circle(mapaProfundidadeEsqueleto, ombroEsq, 2, COR_AMARELO, 2);
+				line(mapaProfundidadeEsqueleto, maoEsq, cotoveloEsq, COR_AMARELO, 1);
+				line(mapaProfundidadeEsqueleto, cotoveloEsq, ombroEsq, COR_AMARELO, 1);
+				//desenha a estrutura do braço direito
+				circle(mapaProfundidadeEsqueleto, maoDir, 2, COR_VERDE, 2);
+				circle(mapaProfundidadeEsqueleto, cotoveloDir, 2, COR_VERDE, 2);
+				circle(mapaProfundidadeEsqueleto, ombroDir, 2, COR_VERDE, 2);
+				line(mapaProfundidadeEsqueleto, maoDir, cotoveloDir, COR_VERDE, 1);
+				line(mapaProfundidadeEsqueleto, cotoveloDir, ombroDir, COR_VERDE, 1);
+				//desenha a estrutura do torso e cabeça
+				circle(mapaProfundidadeEsqueleto, torso, 2, COR_BRANCO, 2);
+				circle(mapaProfundidadeEsqueleto, pescoco, 2, COR_VERMELHO, 2);
+				line(mapaProfundidadeEsqueleto, ombroEsq, torso, COR_BRANCO, 1);
+				line(mapaProfundidadeEsqueleto, ombroEsq, pescoco, COR_BRANCO, 1);
+				line(mapaProfundidadeEsqueleto, ombroDir, torso, COR_BRANCO, 1);
+				line(mapaProfundidadeEsqueleto, ombroDir, pescoco, COR_BRANCO, 1);
+				circle(mapaProfundidadeEsqueleto, cabeca, 2, COR_AZUL, 2);
+				line(mapaProfundidadeEsqueleto, pescoco, cabeca, COR_VERMELHO, 1);
+			}//if (sensor->getNumTrackedUsers() > 0)
+        }//for (int indiceMao = 0; indiceMao < 2; indiceMao++)
+
+		//recebe a interação do teclado
+		teclado = waitKey(10);
+
+		if (teclado == 'a' || teclado == 'b') {
+			if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO) {
+				printf("\nLimite de treinamento da letra A!");
+			} else if (teclado == 'b' && quantidadeTreinamentoB >= REPETICAO) {
+				printf("\nLimite de treinamento da letra B!");
+			}//if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO)
+			//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
+			//será utilizado pelo SVM
+			int i, j, k = 0;
+			for(i = 0; i < mapaMaos[MAO_DIREITA].rows; i++) {
+				for (j = 0; j < mapaMaos[MAO_DIREITA].cols; j++) {
+					int tR = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[R];
+					int tG = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[G];
+					int tB = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[B];
+					dadosTreinamento.at<float>(quantidadeTreinamento,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
+				}//for (j = 0; j < mapaMaos[0].cols; j++)
+			}//for(i = 0; i < mapaMaos[0].rows; i++)
+
+			if (teclado == 'a') {
+				printf("\nFrame capturado para treinamento da letra A!");
+				label[quantidadeTreinamento] = SINAL_A;
+				quantidadeTreinamentoA++;
+			} else if (teclado == 'b') {
+				printf("\nFrame capturado para treinamento da letra B!");
+				label[quantidadeTreinamento] = SINAL_B;
+				quantidadeTreinamentoB++;
+			} else {
+				printf("\nFrame capturado para treinamento de casos errados!");
+				label[quantidadeTreinamento] = SINAL_NADA;
+			}
+			quantidadeTreinamento++;
+		} else if (teclado == ' ') {
+			if (TREINAMENTO == 0) {
+				printf("\nIniciando novo treinamento!");
+				TREINAMENTO = 1;
+			} else {
+				printf("\nIniciando reconhecimento!");
+				TREINAMENTO = 0;
+			}//if (TREINAMENTO == 0)
+		} else if (teclado == 27) {
+			break;
+		}//if (teclado == 'a' || teclado == 'b')
+
+		//apresenta o mapa de profundidade simples caso não tenha detectado o usuário
+		//caso tenha detectado, mostra o mapa de profundidade com o esqueleto
+		if (sensor->getNumTrackedUsers() > 0) {
+	        imshow(frameProfundidade, mapaProfundidadeEsqueleto);
+		} else {
+			imshow(frameProfundidade, mapaProfundidade);
+		}//if (sensor->getNumTrackedUsers() > 0)
+
+		//apresenta a imagem das mãos
+        if (mapaMaos.size() >= 2) {
+			resize(mapaMaos[MAO_DIREITA], mapaMaos[MAO_DIREITA], Size(), 3, 3);
+            resize(mapaMaos[MAO_ESQUERDA], mapaMaos[MAO_ESQUERDA], Size(), 3, 3);
+			resize(mapaMaosBGR[MAO_DIREITA], mapaMaosBGR[MAO_DIREITA], Size(), 3, 3);
+            resize(mapaMaosBGR[MAO_ESQUERDA], mapaMaosBGR[MAO_ESQUERDA], Size(), 3, 3);
+			imshow(frameMaoDireita, mapaMaos[MAO_DIREITA]);
+            imshow(frameMaoEsquerda, mapaMaos[MAO_ESQUERDA]);
+			imshow(frameMaoDireitaBGR, mapaMaosBGR[MAO_DIREITA]);
+            imshow(frameMaoEsquerdaBGR, mapaMaosBGR[MAO_ESQUERDA]);
+            mapaMaos.clear();
+			mapaMaosBGR.clear();
+        }//if (mapaMaos.size() >= 2)
+    }//while (1)
+
+	//salva o treinamento SVM
+	if (TREINAMENTO == 1) {
+		Mat labelTreinamento(REPETICAO*2, 1, CV_32FC1, label);
+
+		SVMparams.svm_type    = CvSVM::C_SVC;
+		SVMparams.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+		
+		//treinamento linear
+		SVMparams.kernel_type = CvSVM::LINEAR;
+		linearSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
+		linearSVM.save(buscarNomeArquivo(CvSVM::LINEAR));
+		//treinamento polinomial quadrático
+		SVMparams.degree	  = 2;//quadrática
+		SVMparams.kernel_type = CvSVM::POLY;
+		polinomialSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
+		polinomialSVM.save(buscarNomeArquivo(CvSVM::POLY));
+		//treinamento radial
+		SVMparams.kernel_type = CvSVM::RBF;
+		radialSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
+		radialSVM.save(buscarNomeArquivo(CvSVM::RBF));
+
+		printf("\nGravando treinamento!");
+	}//if (TREINAMENTO == 1)
+
+	mapaMaos.clear();
+	mapaMaosBGR.clear();
+
+    delete sensor;
+
+    return 0;
+}
+
+
+/*
 
 					
 					//vector<Point> curva;
@@ -333,7 +526,7 @@ int main(int argc, char** argv)
 					convexHull(contorno, corpoI[0], false);
 
 					//printf("\n %d ", corpoI.size());
-					//drawContours(mapaDisparidadeColoridoValido, corpo, 0, COLOR_LIGHT_GREEN, 1, 8, vector<Vec4i>(), 0, Point());
+					//drawContours(mapaDisparidadeColoridoValido, corpo, 0, COR_VERDE, 1, 8, vector<Vec4i>(), 0, Point());
 
 					vector<vector<Vec4i>> defeitosConvexos(contornos.size());
 					convexityDefects(Mat(contornos[indiceMaior]), corpoI[0], defeitosConvexos[0]);
@@ -341,7 +534,7 @@ int main(int argc, char** argv)
 					for (j = 0; j < corpo[0].size(); j++)
                     {
 						if (corpo[0][j].y <= centro.y) {
-							circle(mapaDisparidadeColoridoValido, corpo[0][j], 3, COLOR_YELLOW, 2);
+							circle(mapaDisparidadeColoridoValido, corpo[0][j], 3, COR_AMARELO, 2);
 						}
                     }
 
@@ -349,168 +542,7 @@ int main(int argc, char** argv)
 						//verifica se o defeito esta na altura ou mais alto que o centro da mão (pegar apenas espaço entre dedos)
 						if (contorno[defeitosConvexos[0][j].val[2]].y <= centro.y) {
 							if (defeitosConvexos[0][j].val[3] >= abs(maxdist)) {
-								circle(mapaDisparidadeColoridoValido, contorno[defeitosConvexos[0][j].val[2]], 3, COLOR_LIGHT_GREEN, 2);
+								circle(mapaDisparidadeColoridoValido, contorno[defeitosConvexos[0][j].val[2]], 3, COR_VERDE, 2);
 							}
 						}
 					}*/
-
-				}
-
-				//Mat handMat;
-				//colorizeDisparity(mapaMao, handMat, -1);
-				//Mat handMat = mapaMao.clone();
-				//findContours(mapaDisparidadeColoridoValido, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
-
-				//clona o mapa para poder inverter, no reconhecimento da mão esquerda
-				Mat mapaTemporario = mapaDisparidadeColorido.clone();
-
-				if (indiceMao == MAO_ESQUERDA) {
-					flip(mapaTemporario, mapaTemporario, 1);
-				}//if (indiceMao == MAO_ESQUERDA)
-
-				Mat dadosTeste(1, area, CV_32FC1);
-				string tR, tG, tB;
-				int k = 0;
-				for (i = 0; i < mapaTemporario.rows; i++) {
-					for (j = 0; j < mapaTemporario.cols; j++) {
-						int tR = mapaTemporario.at<Vec3b>(i, j)[R];
-						int tG = mapaTemporario.at<Vec3b>(i, j)[G];
-						int tB = mapaTemporario.at<Vec3b>(i, j)[B];
-						dadosTeste.at<float>(0,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
-					}//for ( j = 0; j < mapaTemporario.cols; j++)
-				}//for( i = 0; i < mapaTemporario.rows; i++)
-			
-				//realiza a classificação após delay
-				if (TREINAMENTO == 0 && delay == 0) {
-					if (indiceMao == MAO_ESQUERDA) {
-						printf("\nMao esquerda: ");
-					} else {
-						printf("\nMao direita: ");
-					}//if (indiceMao == 1)
-					float resposta = svm.predict(dadosTeste);
-					if (resposta == SINAL_B) {
-						printf("LETRA B");
-					} else if (resposta == SINAL_A) {
-						printf("LETRA A");
-					} else {
-						printf("NADA");
-					}//if (resposta == SINAL_B)
-				}//if (delay == 0)
-
-				debugFrames.push_back(mapaDisparidadeColorido);
-
-				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade
-				cvtColor(mapaProfundidade, mapaProfundidadeEsqueleto, CV_GRAY2BGR);
-				
-				Point torso(esqueleto.torso.x, esqueleto.torso.y);
-				Point pescoco(esqueleto.neck.x, esqueleto.neck.y);
-				Point cabeca(esqueleto.head.x, esqueleto.head.y);
-				Point maoEsq = Point(esqueleto.leftHand.x, esqueleto.leftHand.y);
-				Point cotoveloEsq = Point(esqueleto.leftElbow.x, esqueleto.leftElbow.y);
-				Point ombroEsq = Point(esqueleto.leftShoulder.x, esqueleto.leftShoulder.y);
-				Point maoDir = Point(esqueleto.rightHand.x, esqueleto.rightHand.y);
-				Point cotoveloDir = Point(esqueleto.rightElbow.x, esqueleto.rightElbow.y);
-				Point ombroDir = Point(esqueleto.rightShoulder.x, esqueleto.rightShoulder.y);
-				
-				circle(mapaProfundidadeEsqueleto, maoEsq, 2, COLOR_YELLOW, 2);
-				circle(mapaProfundidadeEsqueleto, cotoveloEsq, 2, COLOR_YELLOW, 2);
-				circle(mapaProfundidadeEsqueleto, ombroEsq, 2, COLOR_YELLOW, 2);
-				line(mapaProfundidadeEsqueleto, maoEsq, cotoveloEsq, COLOR_YELLOW, 1);
-				line(mapaProfundidadeEsqueleto, cotoveloEsq, ombroEsq, COLOR_YELLOW, 1);
-
-				circle(mapaProfundidadeEsqueleto, maoDir, 2, COLOR_LIGHT_GREEN, 2);
-				circle(mapaProfundidadeEsqueleto, cotoveloDir, 2, COLOR_LIGHT_GREEN, 2);
-				circle(mapaProfundidadeEsqueleto, ombroDir, 2, COLOR_LIGHT_GREEN, 2);
-				line(mapaProfundidadeEsqueleto, maoDir, cotoveloDir, COLOR_LIGHT_GREEN, 1);
-				line(mapaProfundidadeEsqueleto, cotoveloDir, ombroDir, COLOR_LIGHT_GREEN, 1);
-
-				circle(mapaProfundidadeEsqueleto, torso, 2, COLOR_WHITE, 2);
-				circle(mapaProfundidadeEsqueleto, pescoco, 2, COLOR_RED, 2);
-				line(mapaProfundidadeEsqueleto, ombroEsq, torso, COLOR_WHITE, 1);
-				line(mapaProfundidadeEsqueleto, ombroEsq, pescoco, COLOR_WHITE, 1);
-				line(mapaProfundidadeEsqueleto, ombroDir, torso, COLOR_WHITE, 1);
-				line(mapaProfundidadeEsqueleto, ombroDir, pescoco, COLOR_WHITE, 1);
-
-				circle(mapaProfundidadeEsqueleto, cabeca, abs(ombroEsq.x-pescoco.x)/2, COLOR_BLUE, 2);
-				line(mapaProfundidadeEsqueleto, pescoco, cabeca, COLOR_RED, 1);
-			}//if (sensor->getNumTrackedUsers() > 0)
-        }//for (int indiceMao = 0; indiceMao < 2; indiceMao++)
-
-		teclado = waitKey(10);
-
-		if (teclado == 'q' || teclado == 'w' || teclado == 'e') {
-			int i,j,k=0;
-			for(i = 0; i < debugFrames[0].rows; i++) {
-				for (j = 0; j < debugFrames[0].cols; j++) {
-					int tR = debugFrames[0].at<Vec3b>(i, j)[R];
-					int tG = debugFrames[0].at<Vec3b>(i, j)[G];
-					int tB = debugFrames[0].at<Vec3b>(i, j)[B];
-					dadosTreinamento.at<float>(quantidadeTreinamento,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
-				}//for (j = 0; j < debugFrames[0].cols; j++)
-			}//for(i = 0; i < debugFrames[0].rows; i++)
-
-			if (teclado == 'q') {
-				printf("\nFrame capturado para treinamento da letra A!");
-				label[quantidadeTreinamento] = SINAL_A;
-			} else if (teclado == 'w') {
-				printf("\nFrame capturado para treinamento da letra B!");
-				label[quantidadeTreinamento] = SINAL_B;
-			} else {
-				printf("\nFrame capturado para treinamento de casos errados!");
-				label[quantidadeTreinamento] = SINAL_NADA;
-			}
-			quantidadeTreinamento++;
-		} else if (teclado == 'x') {
-			if (TREINAMENTO == 0) {
-				printf("\nIniciando novo treinamento!");
-				TREINAMENTO = 1;
-			} else {
-				printf("\nIniciando reconhecimento!");
-				TREINAMENTO = 0;
-			}//if (TREINAMENTO == 0)
-		} else if (teclado == 'z') {
-			break;
-		}//if (teclado == 27 || teclado == 'q')
-
-		imshow(frameImagem, imagemBGR);
-		if (sensor->getNumTrackedUsers() > 0) {
-	        imshow(frameProfundidade, mapaProfundidadeEsqueleto);
-		} else {
-			imshow(frameProfundidade, mapaProfundidade);
-		}//if (sensor->getNumTrackedUsers() > 0)
-        if (debugFrames.size() >= 2) {
-            resize(debugFrames[0], debugFrames[0], Size(), 3, 3);
-            resize(debugFrames[1], debugFrames[1], Size(), 3, 3);
-			imshow(frameMaoDireita,  debugFrames[0]);
-            imshow(frameMaoEsquerda,  debugFrames[1]);
-            debugFrames.clear();
-        }//if (debugFrames.size() >= 2)
-    }//while (1)
-
-	if (TREINAMENTO == 1) {
-		Mat labelTreinamento(REPETICAO, 1, CV_32FC1, label);
-
-		params.svm_type    = CvSVM::C_SVC;
-		params.kernel_type = CvSVM::LINEAR;
-		params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
-
-		svm.train(dadosTreinamento, labelTreinamento, Mat(), Mat(), params);
-
-		printf("\nGravando treinamento!");
-		svm.save("treinamento_linear.xml");
-	}//if (TREINAMENTO == 1)
-	//printf("\n salvando treinamento");
-	// Declare what you need
-	//cv::FileStorage file("treinamento1_esq.xml", cv::FileStorage::WRITE);
-	//printf("\n salvando treinamento2");
-	// Write to file!
-	//file << "MaoEsquerda" << debugFrames[0];
-
-	//file.release();
-
-	debugFrames.clear();
-
-    delete sensor;
-
-    return 0;
-}

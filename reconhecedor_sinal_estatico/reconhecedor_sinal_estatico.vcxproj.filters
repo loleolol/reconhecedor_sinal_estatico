@@ -24,12 +24,18 @@
     <ClCompile Include="..\include\SkeletonSensor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\include\svm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\log.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\SkeletonSensor.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\svm.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
