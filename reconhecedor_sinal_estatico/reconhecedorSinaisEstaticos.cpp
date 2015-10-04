@@ -5,6 +5,7 @@
 #include <opencv/cv.h>
 #include "SkeletonSensor.hpp"
 #include <string>
+#include <math.h>
 #include <iostream>
 
 using namespace std;
@@ -14,6 +15,8 @@ const unsigned int XRES = 640;
 const unsigned int YRES = 480;
 //define o valor para extração da ROI (Region of Interest)
 const unsigned int ROI_OFFSET = 70;
+const unsigned int ROIXRES = 140;
+const unsigned int ROIYRES = 140;
 //define o valor para extração da coloração produzida pela disparidade
 const unsigned int COR_OFFSET = 170;
 //define o valor para equalizar números em 3 casas d
@@ -41,9 +44,15 @@ const Scalar COR_AZUL     = Scalar(240,40,0);
 const Scalar COR_AMARELO  = Scalar(0,128,200);
 const Scalar COR_VERMELHO = Scalar(0,0,255);
 const Scalar COR_BRANCO   = Scalar(255,255,255);
+const Scalar COR_PRETO    = Scalar(0,0,0);
+
+
+LARGE_INTEGER frequencia;       // ticks per second
+LARGE_INTEGER t1, t2, t3, t4, t5, t6, t7, t8;           // ticks
+double tempoDecorrido;
 
 //coloriza a disparidade obtida com câmera de profundidade - função retirada de exemplo do OpenCV
-static void colorizeDisparity( const Mat& gray, Mat& rgb, double maxDisp=-1.f, float S=1.f, float V=1.f )
+static void colorizeDisparity(const Mat& gray, Mat& rgb, double maxDisp=-1.f, float S=1.f, float V=1.f)
 {
     CV_Assert( !gray.empty() );
     CV_Assert( gray.type() == CV_8UC1 );
@@ -64,34 +73,35 @@ static void colorizeDisparity( const Mat& gray, Mat& rgb, double maxDisp=-1.f, f
         for( int x = 0; x < gray.cols; x++ )
         {
             uchar d = gray.at<uchar>(y,x);
-            unsigned int H = ((uchar)maxDisp - d) * 240 / (uchar)maxDisp;
+			if (d != 0) {
+				unsigned int H = ((uchar)maxDisp - d) * 240 / (uchar)maxDisp;
+				unsigned int hi = (H/60) % 6;
+				float f = H/60.f - H/60;
+				float p = V * (1 - S);
+				float q = V * (1 - f * S);
+				float t = V * (1 - (1 - f) * S);
 
-            unsigned int hi = (H/60) % 6;
-            float f = H/60.f - H/60;
-            float p = V * (1 - S);
-            float q = V * (1 - f * S);
-            float t = V * (1 - (1 - f) * S);
+				Point3f res;
 
-            Point3f res;
-
-            if( hi == 0 ) //R = V,  G = t,  B = p
-                res = Point3f( p, t, V );
-            if( hi == 1 ) // R = q, G = V,  B = p
-                res = Point3f( p, V, q );
-            if( hi == 2 ) // R = p, G = V,  B = t
-                res = Point3f( t, V, p );
-            if( hi == 3 ) // R = p, G = q,  B = V
-                res = Point3f( V, q, p );
-            if( hi == 4 ) // R = t, G = p,  B = V
-                res = Point3f( V, p, t );
-            if( hi == 5 ) // R = V, G = p,  B = q
-                res = Point3f( q, p, V );
+				if( hi == 0 ) //R = V,  G = t,  B = p
+					res = Point3f( p, t, V );
+				if( hi == 1 ) // R = q, G = V,  B = p
+					res = Point3f( p, V, q );
+				if( hi == 2 ) // R = p, G = V,  B = t
+					res = Point3f( t, V, p );
+				if( hi == 3 ) // R = p, G = q,  B = V
+					res = Point3f( V, q, p );
+				if( hi == 4 ) // R = t, G = p,  B = V
+					res = Point3f( V, p, t );
+				if( hi == 5 ) // R = V, G = p,  B = q
+					res = Point3f( q, p, V );
 			
-            uchar b = (uchar)((std::max)(0.f, (std::min)(res.x, 1.f)) * 255.f);
-            uchar g = (uchar)((std::max)(0.f, (std::min)(res.y, 1.f)) * 255.f);
-            uchar r = (uchar)((std::max)(0.f, (std::min)(res.z, 1.f)) * 255.f);
+				uchar b = (uchar)((std::max)(0.f, (std::min)(res.x, 1.f)) * 255.f);
+				uchar g = (uchar)((std::max)(0.f, (std::min)(res.y, 1.f)) * 255.f);
+				uchar r = (uchar)((std::max)(0.f, (std::min)(res.z, 1.f)) * 255.f);
 
-            rgb.at<Point3_<uchar> >(y,x) = Point3_<uchar>(b, g, r);
+				rgb.at<Point3_<uchar> >(y,x) = Point3_<uchar>(b, g, r);
+			}
         }
     }
 }
@@ -114,12 +124,12 @@ unsigned concatenarNumeros(unsigned a, unsigned b)
 }//unsigned concatenarNumeros(unsigned a, unsigned b)
 
 //imprime a resposta conforme resultado
-void imprimirResposta(float resposta)
+void imprimirResposta(float resposta, double tempo)
 {
 	if (resposta == SINAL_B) {
-		printf("LETRA B");
+		printf("Tempo %fms - LETRA B", tempo);
 	} else if (resposta == SINAL_A) {
-		printf("LETRA A");
+		printf("Tempo %fms - LETRA A", tempo);
 	} else {
 		printf("NADA");
 	}//if (resposta == SINAL_B)
@@ -136,6 +146,12 @@ char *buscarNomeArquivo(int kernel)
 		return "treinamento_1vs1_radial.xml";
 	}//if (SVM_KERNEL == CvSVM::LINEAR)
 }//string buscarNomeArquivo(int kernel)
+
+//mede o tempo decorrido em milisegundos entre os dois marcadores
+double medirTempoDecorrido(LARGE_INTEGER ta, LARGE_INTEGER tb)
+{
+	return (tb.QuadPart - ta.QuadPart) * 1000.0 / frequencia.QuadPart;
+}//double medirTempoDecorrido(LARGE_INTEGER ta, LARGE_INTEGER tb)
 
 int main(int argc, char** argv)
 {
@@ -174,8 +190,8 @@ int main(int argc, char** argv)
     //vetores com a imagem das duas mãos
     vector<Mat> mapaMaos, mapaMaosBGR;
 
-	//área dos frames das mãos TODO
-	int areaMapa = 140*140;
+	//área dos frames das mãos
+	int areaMapa = ROIXRES*ROIYRES;
 	Mat dadosTreinamento(REPETICAO*2, areaMapa, CV_32FC1);
 	float label[REPETICAO*2];
 	int quantidadeTreinamentoA = 0;
@@ -196,7 +212,6 @@ int main(int argc, char** argv)
 	linearSVM.load(buscarNomeArquivo(CvSVM::LINEAR));
 	polinomialSVM.load(buscarNomeArquivo(CvSVM::POLY));
 	radialSVM.load(buscarNomeArquivo(CvSVM::RBF));
-
 	printf("\nTreinamento existente carregado!\n");
 
 	while (1) {
@@ -211,17 +226,24 @@ int main(int argc, char** argv)
 
         for (int indiceMao = 0; indiceMao < 2; indiceMao++) {
             if (sensor->getNumTrackedUsers() > 0) {
+				// get ticks per second
+				QueryPerformanceFrequency(&frequencia);
+				// start timer
+				QueryPerformanceCounter(&t1);
 				//obtém o esqueleto
                 Skeleton esqueleto =  sensor->getSkeleton(sensor->getUID(0));
-                SkeletonPoint mao;
+                SkeletonPoint mao, cotovelo;
 				//define a mão com base no índice
                 if (indiceMao == MAO_DIREITA) {
 					//direita para o usuário
                     mao = esqueleto.leftHand;
+					cotovelo = esqueleto.leftElbow;
 				} else {
 					//esquerda para o usuário
 					mao = esqueleto.rightHand;
+					cotovelo = esqueleto.rightElbow;
 				}//if (indiceMao == MAO_DIREITA)
+				
 				//ajusta a região de interesse (mão) pela movimentação
 				if (mao.confidence == 1.0) {
                     if (!maoProximaPerimetro(mao.x, mao.y)) {
@@ -237,6 +259,9 @@ int main(int argc, char** argv)
 				Mat mapaMao(mapaProfundidade, roi);
 				Mat mapaDisparidadeColorido;
 
+				//desenha o retângulo da região de interesse para referência
+				rectangle(mapaProfundidade, Point(roi.x-1, roi.y-1), Point(roi.x+ROIXRES+1, roi.y+ROIYRES+1), COR_BRANCO, 1);
+
 				//coloriza a disparidade encontrada pela câmera de profundidade
 				colorizeDisparity(mapaMao, mapaDisparidadeColorido, -1);
 				mapaDisparidadeColorido.copyTo(mapaDisparidadeColorido, mapaMao != 0);
@@ -249,7 +274,7 @@ int main(int argc, char** argv)
 
 				//Descarta a profundidade a partir do OFFSET de cor
 				//o elemento mais próximo (possívelmente a mão) e uma pequena distância a partir dele permancem
-				int i, j;
+				int i, j, k = 0;
 				for (i = 0; i < mapaDisparidadeColorido.rows; i++) {
 					for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
 						if(mapaDisparidadeColorido.at<Vec3b>(i, j)[R] 
@@ -259,21 +284,31 @@ int main(int argc, char** argv)
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
 							mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
-						} else if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] == 255) {
-							//printf("\n %d ",mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[G]); 
 						}//if(mapaDisparidadeColoridoValido.at<Vec3b>(i, j)[R] ...
 					}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
 				}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
-							
+				
+				//converte para cinza para realizar detecção de borda Canny
+				Mat mapaCinza, mapaThreshold, mapaCanny;
+				cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
 
-				//converte para cinza para realizar threshold
-				Mat mapaThreshold;
-				cvtColor(mapaDisparidadeColorido, mapaThreshold, CV_BGR2GRAY);
-				//threshold de Otsu, adaptável, indetifica automático o nível adequado
-				threshold(mapaThreshold, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
-				//busca os contornos, possívelmente interrompidos por ruído
+				//detectação de bordas Canny para ressaltar características internas da mão
+				Canny(mapaCinza, mapaCanny, 20, 20*2);	
 				vector<vector<Point>> contornos;
-				findContours(mapaThreshold, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+				findContours(mapaCanny, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+				for (i = 0; i < contornos.size(); i++) {
+					drawContours(mapaDisparidadeColorido, contornos, i, COR_AMARELO, 1, 8, noArray(), 0, Point() );
+				}//for (i = 0; i < contornosCanny.size(); i++)
+
+				//converte para cinza para realizar threshold e detectar a borda externa
+				cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
+				
+				//threshold de Otsu, adaptável, indetifica automático o nível adequado
+				threshold(mapaCinza, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
+				
+				//busca os contornos
+				findContours(mapaThreshold, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+
 				//se há contornos
 				if (contornos.size()) {
 					//busca o maior contorno (possívelmente a mão)
@@ -287,44 +322,81 @@ int main(int argc, char** argv)
 							maiorArea = area;
 						}//if (maiorArea > cArea)
 					}//for (int i = 0; i < contornos.size(); i++)
-					
-					//desenha o maior contorno encontrado
-					drawContours(mapaDisparidadeColorido, contornos, indiceMaior, COR_BRANCO, 1, 8, noArray(), 0, Point() );
-					
-					//será busca o ponto mais interno do contorno para obter o maior círculo interno (possívelmente a palma/mão)
+				
+					//será buscado o ponto mais interno do contorno para obter o maior círculo interno (possívelmente a palma/mão)
 					//o objetivo é remover parte do antebraço, devido ao ruído causado por presença ou ausência de diferentes tipos de manga de roupas
 					Mat mapaPontoInterno(mapaDisparidadeColorido.size(), CV_32FC1);
 					mapaPontoInterno.setTo(0);
+
 					//obtém mapa com as distâncias dos pontos em relação ao contorno
 					for (i = 0; i < mapaPontoInterno.rows; i++) {
-						for (j = 0;j< mapaPontoInterno.cols;j++) {
+						for (j = 0; j < mapaPontoInterno.cols; j++) {
 							mapaPontoInterno.at<float>(i,j) = pointPolygonTest(contornos[indiceMaior], Point(i,j), true);
 						}//for (j = 0;j< dist.cols;j++)
 					}//for (i = 0; i < dist.rows; i++)
+					
+					//busca o ponto médio do polígono para auxiliar na referência de busca do círculo
+					//acaba servindo caso a pessoa esteja vestindo casaco grande (círculo do braço maior que círculo da palma)
+					double pontoMedioY = ROIYRES;
+                    Scalar media = mean(contornos[indiceMaior]);
+					if (typeid(media) == typeid(Scalar)) {
+						pontoMedioY = media.val[1];
+					}//if (typeid(media) == typeid(Scalar))
+                    //Point pontoMedio = Point(media.val[0], media.val[1]);
+					//circle(mapaDisparidadeColorido, centerPoint, 1, COR_VERDE, 1, CV_AA);
+
 					//calcular o ponto mais interno do contorno
 					int ix = 0, jx = 0;
 					float distanciaPonto = -1;
 					for (i = 0; i < mapaPontoInterno.rows; i++) {
 						for (j = 0; j < mapaPontoInterno.cols; j++) {
 							if (mapaPontoInterno.at<float>(i,j) > distanciaPonto) {
-								distanciaPonto = mapaPontoInterno.at<float>(i,j);
-								ix = i;
-								jx = j;
-							}//if (dist.at<float>(i,j) > maxdist)
+								//evita encontrar círculos afastados do ponto médio, próximos da borda (antebraço
+								if (pontoMedioY >= (j-abs(mapaPontoInterno.at<float>(i,j))) && j < (ROIYRES*0.6)) {
+									distanciaPonto = mapaPontoInterno.at<float>(i,j);
+									ix = i;
+									jx = j;
+								}//if (pontoMedioY >= (j-abs(mapaPontoInterno.at<float>(i,j))) && j < (ROIYRES*0.6))
+							}//if (mapaPontoInterno.at<float>(i,j) > distanciaPonto)
 						}//for (j = 0; j < dist.cols; j++)
 					}//for (i = 0; i < dist.rows; i++)
-					//desenha o ponto e o maior círculo interno  						
-					Point centro = Point(ix, jx);
-					circle(mapaDisparidadeColorido, centro, 1, COR_AZUL, 1, CV_AA);
-					circle(mapaDisparidadeColorido, centro, abs(distanciaPonto), COR_AZUL, 1, CV_AA);					
-					//remove o espaço abaixo do círculo, possívelmente o antebraço
-					for (i = (jx+distanciaPonto); i < mapaDisparidadeColorido.rows; i++) {
-						for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
-							mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
-							mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
-							mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
-						}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
-					}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+										
+					//desenha o ponto e o maior círculo interno
+					if (distanciaPonto > -1) {
+						Point centro = Point(ix, jx);
+						int raio = abs(distanciaPonto), fimCirculo = jx+distanciaPonto, metadeRaio = raio*0.5;
+						//circle(mapaDisparidadeColorido, centro, 1, COR_AZUL, 1, CV_AA);
+						//circle(mapaDisparidadeColorido, centro, raio, COR_AZUL, 1, CV_AA);
+						circle(mapaProfundidadeEsqueleto, Point(roi.x+ix, roi.y+jx), raio, COR_AZUL, 1, CV_AA);
+						//tenta apagar o canto inferior da mão, com possível ruído de manga
+						//circle(mapaDisparidadeColorido, Point(ix+distanciaPonto, fimCirculo), metadeRaio, COR_PRETO, -1);
+						circle(mapaDisparidadeColorido, Point(ix-distanciaPonto, fimCirculo), metadeRaio, COR_PRETO, -1);
+
+						//remove o espaço abaixo do círculo, possívelmente o antebraço
+						for (i = fimCirculo; i < mapaDisparidadeColorido.rows; i++) {
+							for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
+								if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0) {
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
+								}//if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0)
+							}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
+						}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+					}//if (distanciaPonto > -1)
+
+					//após toda a extração de características, a idéia é fechar o contorno externo da mão
+					//converte para cinza para realizar threshold e detectar a borda externa
+					cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);				
+					//threshold de Otsu, adaptável, indetifica automático o nível adequado
+					threshold(mapaCinza, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
+					//busca os contornos
+					findContours(mapaThreshold, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+
+					//desenha os contornos encontrado
+					for (i = 0; i < contornos.size(); i++) {
+						drawContours(mapaDisparidadeColorido, contornos, i, COR_BRANCO, 1, 8, noArray(), 0, Point() );
+					}//for (i = 0; i < contornosCanny.size(); i++)
+
 				}//if (contornos.size()) {
 
 				//clona o mapa para poder inverter, no reconhecimento da mão esquerda, visto que o treinamento é com a mão direita
@@ -336,42 +408,64 @@ int main(int argc, char** argv)
 				//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
 				//será utilizado pelo SVM
 				Mat dadosTeste(1, areaMapa, CV_32FC1);
-				int k = 0;
+				k = 0;
 				for (i = 0; i < mapaTemporario.rows; i++) {
 					for (j = 0; j < mapaTemporario.cols; j++) {
 						int tR = mapaTemporario.at<Vec3b>(i, j)[R];
 						int tG = mapaTemporario.at<Vec3b>(i, j)[G];
 						int tB = mapaTemporario.at<Vec3b>(i, j)[B];
-						dadosTeste.at<float>(0, k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
+						if (tR == 0 && tG == 0 && tB == 0) {
+							dadosTeste.at<float>(0, k++) = 0;
+						} else {				
+							dadosTeste.at<float>(0, k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
+						}//if (tR == 0 && tG == 0 && tB == 0)
 					}//for ( j = 0; j < mapaTemporario.cols; j++)
 				}//for( i = 0; i < mapaTemporario.rows; i++)
-				
+				// stop timer
+				QueryPerformanceCounter(&t2);
+				// compute and print the elapsed time in millisec
+				tempoDecorrido = medirTempoDecorrido(t1, t2);
 				//usa o svm e imprime o resultado
+				float resposta;
 				if (TREINAMENTO == 0) {
 					if (indiceMao == MAO_DIREITA) {
-						printf("\n\nReconhecimento\nMao direita:");
-						printf("\nSVM (1vs1)\nLINEAR: ");
-						imprimirResposta(linearSVM.predict(dadosTeste));
-						printf("\nPOLINOMIAL: ");
-						imprimirResposta(polinomialSVM.predict(dadosTeste));
-						printf("\nRADIAL: ");
-						imprimirResposta(radialSVM.predict(dadosTeste));
+						cout << string(50, '\n');
+						printf("\nExtração de caracteristicas %fms\nReconhecimento\nMao direita:", tempoDecorrido);
 					} else {
-						printf("\nMao esquerda: ");
-						printf("\nSVM (1vs1)\nLINEAR: ");
-						imprimirResposta(linearSVM.predict(dadosTeste));
-						printf("\nPOLINOMIAL: ");
-						imprimirResposta(polinomialSVM.predict(dadosTeste));
-						printf("\nRADIAL: ");
-						imprimirResposta(radialSVM.predict(dadosTeste));
+						printf("\nExtração de caracteristicas %fms\nMao esquerda: ");
 					}//if (indiceMao == 1)
-					
+
+					printf("\nSVM (1vs1)\nLINEAR: ");
+					// start timer
+					QueryPerformanceCounter(&t3);
+					resposta = linearSVM.predict(dadosTeste);
+					// stop timer
+					QueryPerformanceCounter(&t4);
+					imprimirResposta(resposta, medirTempoDecorrido(t3, t4));
+
+					printf("\nPOLINOMIAL: ");
+					// start timer
+					QueryPerformanceCounter(&t5);
+					resposta = polinomialSVM.predict(dadosTeste);
+					// stop timer
+					QueryPerformanceCounter(&t6);
+					imprimirResposta(resposta, medirTempoDecorrido(t5, t6));
+
+					printf("\nRADIAL: ");
+					// start timer
+					QueryPerformanceCounter(&t7);
+					resposta = radialSVM.predict(dadosTeste);
+					// stop timer
+					QueryPerformanceCounter(&t8);
+					imprimirResposta(resposta, medirTempoDecorrido(t5, t6));
+
 				}//if (delay == 0)
 
 				//adiciona no vetor de mãos (direita/esquerda)
 				mapaMaos.push_back(mapaDisparidadeColorido);
 				
-				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade
+				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade colorido
+				//cria o mapa de profundidade colorido, para observar depuração dos esqueleto e da ROI
 				cvtColor(mapaProfundidade, mapaProfundidadeEsqueleto, CV_GRAY2BGR);
 				//recebe os pontos pelo kinect
 				Point torso(esqueleto.torso.x, esqueleto.torso.y);
@@ -408,46 +502,58 @@ int main(int argc, char** argv)
         }//for (int indiceMao = 0; indiceMao < 2; indiceMao++)
 
 		//recebe a interação do teclado
-		teclado = waitKey(10);
+		int tecla = waitKey(10);
+		if (tecla > 0) {
+			teclado = tecla;
+		}//if (tecla > 0)
 
 		if (teclado == 'a' || teclado == 'b') {
 			if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO) {
 				printf("\nLimite de treinamento da letra A!");
+				teclado = 999;
 			} else if (teclado == 'b' && quantidadeTreinamentoB >= REPETICAO) {
 				printf("\nLimite de treinamento da letra B!");
-			}//if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO)
-			//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
-			//será utilizado pelo SVM
-			int i, j, k = 0;
-			for(i = 0; i < mapaMaos[MAO_DIREITA].rows; i++) {
-				for (j = 0; j < mapaMaos[MAO_DIREITA].cols; j++) {
-					int tR = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[R];
-					int tG = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[G];
-					int tB = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[B];
-					dadosTreinamento.at<float>(quantidadeTreinamento,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
-				}//for (j = 0; j < mapaMaos[0].cols; j++)
-			}//for(i = 0; i < mapaMaos[0].rows; i++)
-
-			if (teclado == 'a') {
-				printf("\nFrame capturado para treinamento da letra A!");
-				label[quantidadeTreinamento] = SINAL_A;
-				quantidadeTreinamentoA++;
-			} else if (teclado == 'b') {
-				printf("\nFrame capturado para treinamento da letra B!");
-				label[quantidadeTreinamento] = SINAL_B;
-				quantidadeTreinamentoB++;
+				teclado = 999;
 			} else {
-				printf("\nFrame capturado para treinamento de casos errados!");
-				label[quantidadeTreinamento] = SINAL_NADA;
-			}
-			quantidadeTreinamento++;
+				//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
+				//será utilizado pelo SVM
+				int i, j, k = 0;
+				for(i = 0; i < mapaMaos[MAO_DIREITA].rows; i++) {
+					for (j = 0; j < mapaMaos[MAO_DIREITA].cols; j++) {
+						int tR = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[R];
+						int tG = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[G];
+						int tB = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[B];
+						if (tR == 0 && tG == 0 && tB == 0) {
+							dadosTreinamento.at<float>(quantidadeTreinamento,k++) = 0;
+						} else {
+							dadosTreinamento.at<float>(quantidadeTreinamento,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
+						}//if (tR == 0 && tG == 0 && tB == 0)
+					}//for (j = 0; j < mapaMaos[0].cols; j++)
+				}//for(i = 0; i < mapaMaos[0].rows; i++)
+
+				if (teclado == 'a') {
+					printf("\nFrame capturado para treinamento da letra A!");
+					label[quantidadeTreinamento] = SINAL_A;
+					quantidadeTreinamentoA++;
+				} else if (teclado == 'b') {
+					printf("\nFrame capturado para treinamento da letra B!");
+					label[quantidadeTreinamento] = SINAL_B;
+					quantidadeTreinamentoB++;
+				} else {
+					printf("\nFrame capturado para treinamento de casos errados!");
+					label[quantidadeTreinamento] = SINAL_NADA;
+				}//if (teclado == 'a')
+				quantidadeTreinamento++;
+			}//if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO)
 		} else if (teclado == ' ') {
 			if (TREINAMENTO == 0) {
 				printf("\nIniciando novo treinamento!");
 				TREINAMENTO = 1;
+				teclado = 999;
 			} else {
 				printf("\nIniciando reconhecimento!");
 				TREINAMENTO = 0;
+				teclado = 999;
 			}//if (TREINAMENTO == 0)
 		} else if (teclado == 27) {
 			break;
@@ -487,7 +593,7 @@ int main(int argc, char** argv)
 		SVMparams.kernel_type = CvSVM::LINEAR;
 		linearSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
 		linearSVM.save(buscarNomeArquivo(CvSVM::LINEAR));
-		//treinamento polinomial quadrático
+		///treinamento polinomial quadrático
 		SVMparams.degree	  = 2;//quadrática
 		SVMparams.kernel_type = CvSVM::POLY;
 		polinomialSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
@@ -496,7 +602,6 @@ int main(int argc, char** argv)
 		SVMparams.kernel_type = CvSVM::RBF;
 		radialSVM.train_auto(dadosTreinamento, labelTreinamento, Mat(), Mat(), SVMparams);
 		radialSVM.save(buscarNomeArquivo(CvSVM::RBF));
-
 		printf("\nGravando treinamento!");
 	}//if (TREINAMENTO == 1)
 
