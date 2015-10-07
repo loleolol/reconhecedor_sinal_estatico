@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <math.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -14,19 +15,35 @@ using namespace cv;
 
 //define a quantidade de repetições para coletas
 const unsigned int REPETICAO = 30;
-const unsigned int QUANTIDADE = 90;
+const unsigned int QUANTIDADE = 570;
 //define os sinais reconhecidos
 const float SINAL_A = 1.0;
 const float SINAL_B = 2.0;
 const float SINAL_C = 3.0;
+const float SINAL_D = 4.0;
+const float SINAL_E = 5.0;
+const float SINAL_F = 6.0;
+const float SINAL_G = 7.0;
+const float SINAL_I = 8.0;
+const float SINAL_L = 9.0;
+const float SINAL_M = 10.0;
+const float SINAL_N = 11.0;
+const float SINAL_O = 12.0;
+const float SINAL_P = 13.0;
+const float SINAL_Q = 14.0;
+const float SINAL_R = 15.0;
+const float SINAL_S = 16.0;
+const float SINAL_T = 17.0;
+const float SINAL_U = 18.0;
+const float SINAL_V = 19.0;
 
 //define a resolucao do kinect
 const unsigned int XRES = 640;
 const unsigned int YRES = 480;
 //define o valor para extração da ROI (Region of Interest)
 const unsigned int ROI_OFFSET = 70;
-const unsigned int ROIXRES = 140;
-const unsigned int ROIYRES = 140;
+const unsigned int ROIXRES = 180;
+const unsigned int ROIYRES = 180;
 //define o valor para extração da coloração produzida pela disparidade
 const unsigned int COR_OFFSET = 150;
 //define o valor para equalizar números em 3 casas d
@@ -45,10 +62,20 @@ const Scalar COR_AMARELO  = Scalar(0,128,200);
 const Scalar COR_VERMELHO = Scalar(0,0,255);
 const Scalar COR_BRANCO   = Scalar(255,255,255);
 const Scalar COR_PRETO    = Scalar(0,0,0);
-
-LARGE_INTEGER frequencia;       // ticks per second
-LARGE_INTEGER t1, t2, t3, t4, t5, t6, t7, t8;           // ticks
-double tempoDecorrido;
+//indices da matriz de dados
+const int MAO = 0;
+const int TEMPO_EXTRACAO = 1;
+const int RESPOSTA_LINEAR = 2;
+const int TEMPO_LINEAR = 3;
+const int RESPOSTA_POLINOMIAL = 4;
+const int TEMPO_POLINOMIAL = 5;
+const int RESPOSTA_RADIAL = 6;
+const int TEMPO_RADIAL = 7;
+//vetor de letras
+char letra[19] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V'};
+char mao[2] = {'D', 'E'};
+//frequencia para registro dos timers
+LARGE_INTEGER frequencia;
 
 //coloriza a disparidade obtida com câmera de profundidade - função retirada de exemplo do OpenCV
 static void colorizeDisparity(const Mat& gray, Mat& rgb, double maxDisp=-1.f, float S=1.f, float V=1.f)
@@ -112,7 +139,7 @@ bool maoProximaPerimetro(float x, float y)
 		|| (y > (YRES - ROI_OFFSET)) || (y < (ROI_OFFSET));
 }//bool maoProximaPerimetro(float x, float y)
 
-// Concatena dois números
+//concatena dois números
 unsigned concatenarNumeros(unsigned a, unsigned b) 
 {
     unsigned c = 10;
@@ -122,19 +149,57 @@ unsigned concatenarNumeros(unsigned a, unsigned b)
     return a * c + b;        
 }//unsigned concatenarNumeros(unsigned a, unsigned b)
 
+//retorna o sinal pela tecla
+float retornarSinalPorTecla(int tecla)
+{
+	if (tecla == 'a') {
+		return SINAL_A;
+	} else if (tecla == 'b') {
+		return SINAL_B;
+	} else if (tecla == 'c') {
+		return SINAL_C;
+	} else if (tecla == 'd') {
+		return SINAL_D;
+	} else if (tecla == 'e') {
+		return SINAL_E;
+	} else if (tecla == 'f') {
+		return SINAL_F;
+	} else if (tecla == 'g') {
+		return SINAL_G;
+	} else if (tecla == 'i') {
+		return SINAL_I;
+	} else if (tecla == 'l') {
+		return SINAL_L;
+	} else if (tecla == 'm') {
+		return SINAL_M;
+	} else if (tecla == 'n') {
+		return SINAL_N;
+	} else if (tecla == 'o') {
+		return SINAL_O;
+	} else if (tecla == 'p') {
+		return SINAL_P;
+	} else if (tecla == 'q') {
+		return SINAL_Q;
+	} else if (tecla == 'r') {
+		return SINAL_R;
+	} else if (tecla == 's') {
+		return SINAL_S;
+	} else if (tecla == 't') {
+		return SINAL_T;
+	} else if (tecla == 'u') {
+		return SINAL_U;
+	} else if (tecla == 'v') {
+		return SINAL_V;
+	} else {
+		return 0;
+	}//if (tecla == 'a')
+}//float retornarSinalPorTecla(int tecla)
+
 //imprime a resposta conforme resultado
 void imprimirResposta(double resposta, double tempo)
 {
-	int teste = (resposta >= 0.0f ? floorf(resposta + 0.5f) : ceilf(resposta - 0.5f));
-	if (teste == SINAL_B) {
-		printf("Tempo %fms - LETRA B", tempo);
-	} else if (teste == SINAL_A) {
-		printf("Tempo %fms - LETRA A", tempo);
-	} else if (teste == SINAL_C) {
-		printf("Tempo %fms - LETRA C", tempo);
-	} else {
-		printf("NADA ");
-	}//if (resposta == SINAL_B)
+	//int teste = (resposta >= 0.0f ? floorf(resposta + 0.5f) : ceilf(resposta - 0.5f));
+	printf("Tempo %fms - LETRA "+letra[(int)resposta], tempo);
 	printf(" (%f)", resposta);
 }//void imprimirResposta(float resposta)
 
@@ -168,14 +233,18 @@ int main(int argc, char** argv)
 	CvSVMParams polinomialSVMparams;
 	polinomialSVMparams.svm_type = CvSVM::C_SVC;
 	polinomialSVMparams.kernel_type = CvSVM::POLY;
+	polinomialSVMparams.degree = 2;
 	CvSVMParams radialSVMparams;
 	radialSVMparams.svm_type     = CvSVM::C_SVC;
 	radialSVMparams.kernel_type = CvSVM::RBF;
+	
+	//calcular o tempo decorrido em milisegundos
+	LARGE_INTEGER t1, t2, t3, t4, t5, t6, t7, t8;
 
 	//TODO
 	Ptr<DescriptorMatcher> comparador(new FlannBasedMatcher);
-	Ptr<FeatureDetector> detetor(new SurfFeatureDetector(5.0e3));
-	Ptr<DescriptorExtractor> extrator = new SurfDescriptorExtractor(5.0e3);
+	Ptr<FeatureDetector> detetor(new SurfFeatureDetector(40, 4, 2, true, true));//Hessian threshold (40), considera direção
+	Ptr<DescriptorExtractor> extrator = new SurfDescriptorExtractor(40, 4, 2, true, true);//Hessian threshold (40), considera direção
 	BOWImgDescriptorExtractor dextrator(extrator, comparador);
 	Mat caracteristicasDesagrupadas;
 
@@ -209,16 +278,16 @@ int main(int argc, char** argv)
     //vetores com a imagem das duas mãos
     vector<Mat> mapaMaos, mapaMaosBGR;
 
-	//área dos frames das mãos
-	int areaMapa = ROIXRES*ROIYRES;
-	//Mat dadosTreinamento(QUANTIDADE, areaMapa, CV_32FC1);
 	Mat dadosTreinamentoSURF;
 	Mat labelTreinamento;
-	//float label[QUANTIDADE];
-	int quantidadeTreinamentoA = 0;
-	int quantidadeTreinamentoB = 0;
-	int quantidadeTreinamentoC = 0;
-	int quantidadeTreinamento = 0;
+	double dados[(QUANTIDADE*2)][8];
+	int quantidadeTreinamento[19] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	int quantidadeReconhecimento = 0;
+	int quantidadeReconhecimentoEtapa = 0;
+	char letra[19] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V'};
+
+	Point palma[2] = {Point(0, 0), Point(0, 0)};
+	int raioPalma[2] = {0, 0};
 
 	//cria os frames que serão usados
     namedWindow(frameProfundidade, CV_WINDOW_AUTOSIZE);
@@ -256,9 +325,9 @@ int main(int argc, char** argv)
 
         for (int indiceMao = 0; indiceMao < 2; indiceMao++) {
             if (sensor->getNumTrackedUsers() > 0) {
-				// get ticks per second
+				//seta a frequencia
 				QueryPerformanceFrequency(&frequencia);
-				// start timer
+				//inicia o timer pra contabilizar o tempo da extração de características
 				QueryPerformanceCounter(&t1);
 				//obtém o esqueleto
                 Skeleton esqueleto =  sensor->getSkeleton(sensor->getUID(0));
@@ -297,9 +366,6 @@ int main(int argc, char** argv)
 				mapaDisparidadeColorido.copyTo(mapaDisparidadeColorido, mapaMao != 0);
 				
 				//aplica um blur pra tentar conter o ruído
-				//cv::Size a(5,5);
-				//GaussianBlur(mapaDisparidadeColoridoValido, mapaDisparidadeColoridoValido, a, 1); 
-				//blur(mapaDisparidadeColorido, mapaDisparidadeColoridoValido, a);
 				medianBlur(mapaDisparidadeColorido, mapaDisparidadeColorido, 5);
 
 				//Descarta a profundidade a partir do OFFSET de cor
@@ -322,7 +388,7 @@ int main(int argc, char** argv)
 				Mat mapaCinza, mapaThreshold, mapaCanny;
 				cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
 
-				//detectação de bordas Canny para ressaltar características internas da mão
+				//detectação de bordas Canny para ressaltar características internas da mão, threshold baixo (20 ~ 40) para detectar mais características
 				Canny(mapaCinza, mapaCanny, 20, 20*2);	
 				vector<vector<Point>> contornos;
 				findContours(mapaCanny, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
@@ -393,23 +459,23 @@ int main(int argc, char** argv)
 										
 					//desenha o ponto e o maior círculo interno
 					if (distanciaPonto > -1) {
-						Point centro = Point(ix, jx);
-						int raio = abs(distanciaPonto), fimCirculo = jx+distanciaPonto;
-						//circle(mapaDisparidadeColorido, centro, 1, COR_AZUL, 1, CV_AA);
-						//circle(mapaDisparidadeColorido, centro, raio, COR_AZUL, 1, CV_AA);
-						//desenha o círculo interno (possívelmente a palma) no mapa do esqueleto
-						circle(mapaProfundidadeEsqueleto, Point(roi.x+jx, roi.y+ix), raio, COR_AZUL, 1, CV_AA);
-				
-						//remove o espaço abaixo do círculo, possívelmente o antebraço
-						for (i = fimCirculo; i < mapaDisparidadeColorido.rows; i++) {
-							for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
-								if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0) {
-									mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
-									mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
-									mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
-								}//if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0)
-							}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
-						}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+						palma[indiceMao] = Point(roi.x+ix, roi.y+jx);
+						raioPalma[indiceMao] = abs(distanciaPonto);
+						//circle(mapaDisparidadeColorido, Point(ix, jx), 1, COR_AZUL, 1, CV_AA);
+						//circle(mapaDisparidadeColorido, Point(ix, jx), abs(distanciaPonto), COR_AZUL, 1, CV_AA);
+						//só corta o cotovelo se ele estiver pra baixo (tentar resolver para as letras m e n)
+						if (abs(cotovelo.y) > abs(mao.y)) {
+							//remove o espaço abaixo do círculo, possívelmente o antebraço
+							for (i = (jx+distanciaPonto); i < mapaDisparidadeColorido.rows; i++) {
+								for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
+									if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0) {
+										mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
+										mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
+										mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
+									}//if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0)
+								}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
+							}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
+						}//if (cotovelo.y < (jx+distanciaPonto))
 					}//if (distanciaPonto > -1)
 
 					//após toda a extração de características, a idéia é fechar o contorno externo da mão
@@ -431,68 +497,64 @@ int main(int argc, char** argv)
 				if (indiceMao == MAO_ESQUERDA) {
 					flip(mapaTemporario, mapaTemporario, 1);
 				}//if (indiceMao == MAO_ESQUERDA)
-
-				//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
-				//será utilizado pelo SVM
-				/*Mat dadosTeste(1, areaMapa, CV_32FC1);
-				k = 0;
-				for (i = 0; i < mapaTemporario.rows; i++) {
-					for (j = 0; j < mapaTemporario.cols; j++) {
-						int tR = mapaTemporario.at<Vec3b>(i, j)[R];
-						int tG = mapaTemporario.at<Vec3b>(i, j)[G];
-						int tB = mapaTemporario.at<Vec3b>(i, j)[B];
-						if (tR == 0 && tG == 0 && tB == 0) {
-							dadosTeste.at<float>(0, k++) = 0;
-						} else {				
-							dadosTeste.at<float>(0, k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
-						}//if (tR == 0 && tG == 0 && tB == 0)
-					}//for ( j = 0; j < mapaTemporario.cols; j++)
-				}//for( i = 0; i < mapaTemporario.rows; i++)*/
-
-				Mat descriptors;
-				vector<KeyPoint> keypoints;
-				detetor->detect(mapaTemporario, keypoints);
-				dextrator.compute(mapaTemporario, keypoints, descriptors);
-				//dadosTreinamentoSURF.push_back(descriptors);
-
-
-				// stop timer
+				
+				//extrai os descritores com o SURF considerando o vocabulário da Bag-of-Words 
+				Mat descritor;
+				vector<KeyPoint> pontosChave;
+				detetor->detect(mapaTemporario, pontosChave);
+				dextrator.compute(mapaTemporario, pontosChave, descritor);
+				
+				//pega o timer do fim da extração e computa o tempo decorrido
 				QueryPerformanceCounter(&t2);
-				// compute and print the elapsed time in millisec
-				tempoDecorrido = medirTempoDecorrido(t1, t2);
 				//usa o svm e imprime o resultado
-				float resposta;
 				if (TREINAMENTO == 0) {
-					if (indiceMao == MAO_DIREITA) {
-						printf("\n\nEXTRACAO DE CARACTERISTICAS %fms\nRECONHECIMENTO MAO DIREITA:", tempoDecorrido);
-					} else {
-						printf("\nEXTRACAO DE CARACTERISTICAS %fms\nRECONHECIMENTO MAO ESQUERDA:", tempoDecorrido);
-					}//if (indiceMao == 1)
+					if (quantidadeReconhecimentoEtapa < (REPETICAO*2)) {
+						dados[quantidadeReconhecimento][MAO] = indiceMao;
+						dados[quantidadeReconhecimento][TEMPO_EXTRACAO] = medirTempoDecorrido(t1, t2);
 
-					printf("\nSVM (1vs1) LINEAR: ");
-					QueryPerformanceCounter(&t3);
-					resposta = linearSVM.predict(descriptors);
-					QueryPerformanceCounter(&t4);
-					imprimirResposta(resposta, medirTempoDecorrido(t3, t4));
+						if (indiceMao == MAO_DIREITA) {
+							printf("\n\nEXTRACAO DE CARACTERISTICAS %fms\nRECONHECIMENTO MAO DIREITA:", dados[quantidadeReconhecimento][TEMPO_EXTRACAO]);
+						} else {
+							printf("\nEXTRACAO DE CARACTERISTICAS %fms\nRECONHECIMENTO MAO ESQUERDA:", dados[quantidadeReconhecimento][TEMPO_EXTRACAO]);
+						}//if (indiceMao == 1)
 
-					printf("\nSVM (1vs1) POLINOMIAL: ");
-					QueryPerformanceCounter(&t5);
-					resposta = polinomialSVM.predict(descriptors);
-					QueryPerformanceCounter(&t6);
-					imprimirResposta(resposta, medirTempoDecorrido(t5, t6));
-
-					printf("\nSVM (1vs1) RADIAL: ");
-					QueryPerformanceCounter(&t7);
-					resposta = radialSVM.predict(descriptors);
-					QueryPerformanceCounter(&t8);
-					imprimirResposta(resposta, medirTempoDecorrido(t5, t6));
+						//predição linear, contabiliza o tempo
+						printf("\nSVM (1vs1) LINEAR: ");
+						QueryPerformanceCounter(&t3);
+						dados[quantidadeReconhecimento][RESPOSTA_LINEAR] = linearSVM.predict(descritor);
+						QueryPerformanceCounter(&t4);
+						dados[quantidadeReconhecimento][TEMPO_LINEAR] = medirTempoDecorrido(t3, t4);
+						imprimirResposta(dados[quantidadeReconhecimento][RESPOSTA_LINEAR], dados[quantidadeReconhecimento][TEMPO_LINEAR]);
+						//predição polinomial, contabiliza o tempo
+						printf("\nSVM (1vs1) POLINOMIAL: ");
+						QueryPerformanceCounter(&t5);
+						dados[quantidadeReconhecimento][RESPOSTA_POLINOMIAL] = polinomialSVM.predict(descritor);
+						QueryPerformanceCounter(&t6);
+						dados[quantidadeReconhecimento][TEMPO_POLINOMIAL] = medirTempoDecorrido(t5, t6);
+						imprimirResposta(dados[quantidadeReconhecimento][RESPOSTA_POLINOMIAL], dados[quantidadeReconhecimento][TEMPO_POLINOMIAL]);
+						//predição radial, contabiliza o tempo
+						printf("\nSVM (1vs1) RADIAL: ");
+						QueryPerformanceCounter(&t7);
+						dados[quantidadeReconhecimento][RESPOSTA_RADIAL] = radialSVM.predict(descritor);
+						QueryPerformanceCounter(&t8);
+						dados[quantidadeReconhecimento][TEMPO_RADIAL] = medirTempoDecorrido(t7, t8);
+						imprimirResposta(dados[quantidadeReconhecimento][RESPOSTA_RADIAL], dados[quantidadeReconhecimento][TEMPO_RADIAL]);
 					
-				}//if (delay == 0)*/
+						quantidadeReconhecimento++;
+						quantidadeReconhecimentoEtapa++;
+					} else {
+
+						printf("\n Completou uma etapa de %d reconhecimentos!", quantidadeReconhecimento);
+						quantidadeReconhecimentoEtapa = 0;
+						TREINAMENTO = 1;
+
+					}//if (quantidadeReconhecimento < QUANTIDADE)
+				}//if (TREINAMENTO == 0)*/
 
 				//adiciona no vetor de mãos (direita/esquerda)
 				mapaMaos.push_back(mapaDisparidadeColorido);
 				
-				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade colorido
+				//desenha o esqueleto do torso, braços e cabeça no mapa de profundidade colorido, apenas para referência, não contabiliza o tempo
 				//cria o mapa de profundidade colorido, para observar depuração dos esqueleto e da ROI
 				cvtColor(mapaProfundidade, mapaProfundidadeEsqueleto, CV_GRAY2BGR);
 				//recebe os pontos pelo kinect
@@ -519,13 +581,18 @@ int main(int argc, char** argv)
 				line(mapaProfundidadeEsqueleto, cotoveloDir, ombroDir, COR_VERDE, 1);
 				//desenha a estrutura do torso e cabeça
 				circle(mapaProfundidadeEsqueleto, torso, 2, COR_BRANCO, 2);
-				circle(mapaProfundidadeEsqueleto, pescoco, 2, COR_VERMELHO, 2);
+				circle(mapaProfundidadeEsqueleto, pescoco, 2, COR_AZUL, 2);
 				line(mapaProfundidadeEsqueleto, ombroEsq, torso, COR_BRANCO, 1);
 				line(mapaProfundidadeEsqueleto, ombroEsq, pescoco, COR_BRANCO, 1);
 				line(mapaProfundidadeEsqueleto, ombroDir, torso, COR_BRANCO, 1);
 				line(mapaProfundidadeEsqueleto, ombroDir, pescoco, COR_BRANCO, 1);
 				circle(mapaProfundidadeEsqueleto, cabeca, 2, COR_AZUL, 2);
-				line(mapaProfundidadeEsqueleto, pescoco, cabeca, COR_VERMELHO, 1);
+				line(mapaProfundidadeEsqueleto, pescoco, cabeca, COR_AZUL, 1);
+				//desenha o círculo interno (possívelmente a palma) no mapa do esqueleto
+				circle(mapaProfundidadeEsqueleto, palma[MAO_DIREITA], 1, COR_VERMELHO, 1);
+				circle(mapaProfundidadeEsqueleto, palma[MAO_DIREITA], raioPalma[MAO_DIREITA], COR_VERMELHO, 1);
+				circle(mapaProfundidadeEsqueleto, palma[MAO_ESQUERDA], 1, COR_VERMELHO, 1);
+				circle(mapaProfundidadeEsqueleto, palma[MAO_ESQUERDA], raioPalma[MAO_ESQUERDA], COR_VERMELHO, 1);
 			}//if (sensor->getNumTrackedUsers() > 0)
         }//for (int indiceMao = 0; indiceMao < 2; indiceMao++)
 
@@ -535,63 +602,28 @@ int main(int argc, char** argv)
 			teclado = tecla;
 		}//if (tecla > 0)
 		
-		if (teclado == 'a' || teclado == 'b' || teclado == 'c') {
-			if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO) {
-				printf("\nLimite de treinamento da letra A!");
-				teclado = 999;
-			} else if (teclado == 'b' && quantidadeTreinamentoB >= REPETICAO) {
-				printf("\nLimite de treinamento da letra B!");
-				teclado = 999;
-			} else if (teclado == 'c' && quantidadeTreinamentoC >= REPETICAO) {
-				printf("\nLimite de treinamento da letra C!");
+		int sinal = (int)retornarSinalPorTecla(teclado);
+		if (sinal != 0) {
+			if (quantidadeTreinamento[sinal] >= REPETICAO) {
+				printf("\nLimite de treinamento da letra %c!", teclado);
 				teclado = 999;
 			} else {
-				//monta um vetor da matriz do mapa, com os valores RGB concatenados e em sequência de três digitos forçada pela soma com o OFFSET (100)
-				//será utilizado pelo SVM
-				/*int i, j, k = 0;
-				for(i = 0; i < mapaMaos[MAO_DIREITA].rows; i++) {
-					for (j = 0; j < mapaMaos[MAO_DIREITA].cols; j++) {
-						int tR = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[R];
-						int tG = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[G];
-						int tB = mapaMaos[MAO_DIREITA].at<Vec3b>(i, j)[B];
-						if (tR == 0 && tG == 0 && tB == 0) {
-							dadosTreinamento.at<float>(quantidadeTreinamento,k++) = 0;
-						} else {
-							dadosTreinamento.at<float>(quantidadeTreinamento,k++) = concatenarNumeros(concatenarNumeros(tR+NUMERO_OFFSET, tG+NUMERO_OFFSET), tB+NUMERO_OFFSET);
-						}//if (tR == 0 && tG == 0 && tB == 0)
-					}//for (j = 0; j < mapaMaos[0].cols; j++)
-				}//for(i = 0; i < mapaMaos[0].rows; i++)
-				*/
-
-				Mat descriptors;
-				vector<KeyPoint> keypoints;
-				detetor->detect(mapaMaos[MAO_DIREITA], keypoints);
-				dextrator.compute(mapaMaos[MAO_DIREITA], keypoints, descriptors);
-				dadosTreinamentoSURF.push_back(descriptors);
+				//extrai os descritores SURF da imagem, considerando o vocabulário da Bag-of-Words
+				Mat descritoresTreinamento;
+				vector<KeyPoint> pontosChaveTreinamento;
+				detetor->detect(mapaMaos[MAO_DIREITA], pontosChaveTreinamento);
+				dextrator.compute(mapaMaos[MAO_DIREITA], pontosChaveTreinamento, descritoresTreinamento);
+				dadosTreinamentoSURF.push_back(descritoresTreinamento);
 								
-				if (teclado == 'a') {
-					printf("\nFrame capturado para treinamento da letra A!");
-					labelTreinamento.push_back(SINAL_A);
-					quantidadeTreinamentoA++;
-				} else if (teclado == 'b') {
-					printf("\nFrame capturado para treinamento da letra B!");
-					labelTreinamento.push_back(SINAL_B);
-					quantidadeTreinamentoB++;
-				} else if (teclado == 'c') {
-					printf("\nFrame capturado para treinamento da letra C!");
-					labelTreinamento.push_back(SINAL_C);
-					quantidadeTreinamentoC++;
-				}//if (teclado == 'a')
-				quantidadeTreinamento++;
-			}//if (teclado == 'a' && quantidadeTreinamentoA >= REPETICAO)
+				labelTreinamento.push_back(sinal);
+				quantidadeTreinamento[sinal]++;
+
+				printf("\nFrame capturado para treinamento da letra %c!", teclado);
+			}//if (quantidadeTreinamento[sinal] >= REPETICAO)
 
 		} else if (teclado == ' ') {
 
-			if (TREINAMENTO == 0) {
-				printf("\nIniciando novo treinamento!");
-				TREINAMENTO = 1;
-				teclado = 999;
-			} else {
+			if (TREINAMENTO == 1) {
 				printf("\nIniciando reconhecimento!");
 				TREINAMENTO = 0;
 				teclado = 999;
@@ -599,46 +631,50 @@ int main(int argc, char** argv)
 
 		} else if (teclado == 'z') {
 
+			for (int i = 0; i < dadosTreinamentoSURF.rows; i++) {
+				Mat descritores;
+				vector<KeyPoint> pontosChave;
+				detetor->detect(dadosTreinamentoSURF.at<Mat>(i), pontosChave);
+				extrator->compute(dadosTreinamentoSURF.at<Mat>(i), pontosChave, descritores);
+				caracteristicasDesagrupadas.push_back(descritores);
+				printf("\nDescritores SURF capturados! (%d)", descritores.size().height);
+			}//for (int i = 0; i < dadosTreinamentoSURF.rows; i++)
+
+			BOWKMeansTrainer bagOfWords(caracteristicasDesagrupadas.size().height, TermCriteria(CV_TERMCRIT_ITER,100,0.0001), 1, KMEANS_PP_CENTERS);
+			vocabulario = bagOfWords.cluster(caracteristicasDesagrupadas);
+			dextrator.setVocabulary(vocabulario);
+			printf("\nVocabulario carregado!");
+			FileStorage fs("dicionario.xml", FileStorage::WRITE);
+			fs << "vocabulario" << vocabulario;
+			fs.release();
+			printf("\nVocabulario salvo!");
+
+			printf("\n Dados %d - Labels %d", dadosTreinamentoSURF.rows, labelTreinamento.rows);
 			//salva o treinamento SVM
 			//treinamento linear
 			linearSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), linearSVMparams);
 			linearSVM.save(buscarNomeArquivo(CvSVM::LINEAR));
-
 			///treinamento polinomial quadrático
 			polinomialSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), polinomialSVMparams);
 			polinomialSVM.save(buscarNomeArquivo(CvSVM::POLY));
-		
 			//treinamento radial
 			radialSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), radialSVMparams);
 			radialSVM.save(buscarNomeArquivo(CvSVM::RBF));
 			printf("\nGravando treinamento!");
 			teclado = 999;
 
-		} else if (teclado == 'j') {
-						
-			Mat descritores;
-			vector<KeyPoint> pontosChave;
-			detetor->detect(mapaMaos[MAO_DIREITA], pontosChave);
-			extrator->compute(mapaMaos[MAO_DIREITA], pontosChave, descritores);
-			caracteristicasDesagrupadas.push_back(descritores);
-			printf("\nDescritores SURF capturados! %d", descritores.size().height);
-			teclado = 999;
-			
-		} else if (teclado == 'k') {
-
-			//200
-			BOWKMeansTrainer bagOfWords(caracteristicasDesagrupadas.size().height, TermCriteria(CV_TERMCRIT_ITER,100,0.0001), 1, KMEANS_PP_CENTERS);
-			vocabulario = bagOfWords.cluster(caracteristicasDesagrupadas);
-			FileStorage fs("dicionario.xml", FileStorage::WRITE);
-			fs << "vocabulario" << vocabulario;
-			fs.release();
-			printf("\nVocabulario salvo!");
-			teclado = 999;
-			break;
-
 		} else if (teclado == 27) {
+			ofstream fs("resultado.csv");
+			for (int i = 0; i < (QUANTIDADE*2); i++) {				
+				fs << mao[(int)dados[i][MAO]] << ";" << dados[i][TEMPO_EXTRACAO]
+				<< ";" << letra[(int)dados[i][RESPOSTA_LINEAR]] << ";" << dados[i][TEMPO_LINEAR]
+				<< ";" << letra[(int)dados[i][RESPOSTA_POLINOMIAL]] << ";" << dados[i][TEMPO_POLINOMIAL]
+				<< ";" << letra[(int)dados[i][RESPOSTA_RADIAL]] << ";" << dados[i][TEMPO_RADIAL] << endl;
+			}//for (int i = 0; i < QUANTIDADE; i++)
+			fs.close();
 			break;
-		}//if (teclado == 'a' || teclado == 'b')
+
+		}//if (sinal != 0)
 
 		//apresenta o mapa de profundidade simples caso não tenha detectado o usuário
 		//caso tenha detectado, mostra o mapa de profundidade com o esqueleto
