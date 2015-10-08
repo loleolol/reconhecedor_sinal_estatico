@@ -278,10 +278,10 @@ int main(int argc, char** argv)
     //vetores com a imagem das duas mãos
     vector<Mat> mapaMaos, mapaMaosBGR;
 
-	Mat dadosTreinamentoSURF;
+	vector<Mat> dadosTreinamento;
 	Mat labelTreinamento;
 	double dados[(QUANTIDADE*2)][8];
-	int quantidadeTreinamento[19] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	int quantidadeTreinamento[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	int quantidadeReconhecimento = 0;
 	int quantidadeReconhecimentoEtapa = 0;
 	char letra[19] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V'};
@@ -300,18 +300,18 @@ int main(int argc, char** argv)
 	int teclado = 0;
 	
     Mat vocabulario; 
-    FileStorage fs("dicionario.xml", FileStorage::READ);
-    fs["vocabulario"] >> vocabulario;
-    fs.release();
+    //FileStorage fs("dicionario.xml", FileStorage::READ);
+    //fs["vocabulario"] >> vocabulario;
+    //fs.release();
 
-	dextrator.setVocabulary(vocabulario);
-	printf("\nVocabulario existente carregado!");
+	//dextrator.setVocabulary(vocabulario);
+	//printf("\nVocabulario existente carregado!");
 
 	//carrega o treinamento salvo pelo SVM para classificar os sinais
-	linearSVM.load(buscarNomeArquivo(CvSVM::LINEAR));
-	polinomialSVM.load(buscarNomeArquivo(CvSVM::POLY));
-	radialSVM.load(buscarNomeArquivo(CvSVM::RBF));
-	printf("\nTreinamento existente carregado!\n");
+	//linearSVM.load(buscarNomeArquivo(CvSVM::LINEAR));
+	//polinomialSVM.load(buscarNomeArquivo(CvSVM::POLY));
+	//radialSVM.load(buscarNomeArquivo(CvSVM::RBF));
+	//printf("\nTreinamento existente carregado!\n");
 
 	while (1) {
         sensor->waitForDeviceUpdateOnUser();
@@ -387,14 +387,7 @@ int main(int argc, char** argv)
 				//converte para cinza para realizar detecção de borda Canny
 				Mat mapaCinza, mapaThreshold, mapaCanny;
 				cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
-
-				//detectação de bordas Canny para ressaltar características internas da mão, threshold baixo (20 ~ 40) para detectar mais características
-				Canny(mapaCinza, mapaCanny, 20, 20*2);	
 				vector<vector<Point>> contornos;
-				findContours(mapaCanny, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
-				for (i = 0; i < contornos.size(); i++) {
-					drawContours(mapaDisparidadeColorido, contornos, i, COR_AMARELO, 1, 8, noArray(), 0, Point() );
-				}//for (i = 0; i < contornosCanny.size(); i++)
 
 				//converte para cinza para realizar threshold e detectar a borda externa
 				cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
@@ -463,28 +456,36 @@ int main(int argc, char** argv)
 						raioPalma[indiceMao] = abs(distanciaPonto);
 						//circle(mapaDisparidadeColorido, Point(ix, jx), 1, COR_AZUL, 1, CV_AA);
 						//circle(mapaDisparidadeColorido, Point(ix, jx), abs(distanciaPonto), COR_AZUL, 1, CV_AA);
-						//só corta o cotovelo se ele estiver pra baixo (tentar resolver para as letras m e n)
-						if (abs(cotovelo.y) > abs(mao.y)) {
-							//remove o espaço abaixo do círculo, possívelmente o antebraço
-							for (i = (jx+distanciaPonto); i < mapaDisparidadeColorido.rows; i++) {
-								for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
-									if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0) {
-										mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
-										mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
-										mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
-									}//if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0)
-								}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
-							}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)
-						}//if (cotovelo.y < (jx+distanciaPonto))
+					
+						//remove o espaço claros abaixo do círculo, possívelmente o antebraço, tenta poupar a mão se estiver abaixada (sinal m, n, q)
+						for (i = (jx+distanciaPonto+5); i < mapaDisparidadeColorido.rows; i++) {
+							for (j = 0; j < mapaDisparidadeColorido.cols; j++) {
+								if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0 && mapaDisparidadeColorido.at<Vec3b>(i, j)[G] > 40) {
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[B] = 0;
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[G] = 0;
+									mapaDisparidadeColorido.at<Vec3b>(i, j)[R] = 0;
+								}//if (mapaDisparidadeColorido.at<Vec3b>(i, j)[R] != 0)
+							}//for ( j = 0; j < mapaDisparidadeColoridoValido.cols; j++)
+						}//for( i = 0; i < mapaDisparidadeColoridoValido.rows; i++)	
 					}//if (distanciaPonto > -1)
+					
+					//converte para cinza para realizar threshold e detectar as bordas
+					cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);	
+					//detectação de bordas Canny para ressaltar características internas da mão, threshold baixo (20 ~ 40) para detectar mais características
+					Canny(mapaCinza, mapaCanny, 20, 20*2);	
+			
+					findContours(mapaCanny, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+					for (i = 0; i < contornos.size(); i++) {
+						drawContours(mapaDisparidadeColorido, contornos, i, COR_AMARELO, 1, 8, noArray(), 0, Point() );
+					}//for (i = 0; i < contornosCanny.size(); i++)
 
 					//após toda a extração de características, a idéia é fechar o contorno externo da mão
-					//converte para cinza para realizar threshold e detectar a borda externa
-					cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);				
+					//converte para cinza para realizar threshold e detectar as bordas
+					cvtColor(mapaDisparidadeColorido, mapaCinza, CV_BGR2GRAY);
 					//threshold de Otsu, adaptável, indetifica automático o nível adequado
 					threshold(mapaCinza, mapaThreshold, 50, 255, THRESH_BINARY+THRESH_OTSU);
 					//busca os contornos
-					findContours(mapaThreshold, contornos, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+					findContours(mapaThreshold, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
 					//desenha os contornos encontrado
 					for (i = 0; i < contornos.size(); i++) {
@@ -611,14 +612,14 @@ int main(int argc, char** argv)
 				//extrai os descritores SURF da imagem, considerando o vocabulário da Bag-of-Words
 				Mat descritoresTreinamento;
 				vector<KeyPoint> pontosChaveTreinamento;
+				dadosTreinamento.push_back(mapaMaos[MAO_DIREITA]);
 				detetor->detect(mapaMaos[MAO_DIREITA], pontosChaveTreinamento);
-				dextrator.compute(mapaMaos[MAO_DIREITA], pontosChaveTreinamento, descritoresTreinamento);
-				dadosTreinamentoSURF.push_back(descritoresTreinamento);
+				extrator->compute(mapaMaos[MAO_DIREITA], pontosChaveTreinamento, descritoresTreinamento);
+				caracteristicasDesagrupadas.push_back(descritoresTreinamento);
 								
 				labelTreinamento.push_back(sinal);
 				quantidadeTreinamento[sinal]++;
-
-				printf("\nFrame capturado para treinamento da letra %c!", teclado);
+				printf("\nFrame capturado para treinamento da letra %c! Descritores SURF capturados! (%d)", teclado, descritoresTreinamento.size().height);
 			}//if (quantidadeTreinamento[sinal] >= REPETICAO)
 
 		} else if (teclado == ' ') {
@@ -631,37 +632,47 @@ int main(int argc, char** argv)
 
 		} else if (teclado == 'z') {
 
-			for (int i = 0; i < dadosTreinamentoSURF.rows; i++) {
-				Mat descritores;
-				vector<KeyPoint> pontosChave;
-				detetor->detect(dadosTreinamentoSURF.at<Mat>(i), pontosChave);
-				extrator->compute(dadosTreinamentoSURF.at<Mat>(i), pontosChave, descritores);
-				caracteristicasDesagrupadas.push_back(descritores);
-				printf("\nDescritores SURF capturados! (%d)", descritores.size().height);
-			}//for (int i = 0; i < dadosTreinamentoSURF.rows; i++)
+			delete sensor;
+			mapaMaos.clear();
+			mapaMaosBGR.clear();
 
 			BOWKMeansTrainer bagOfWords(caracteristicasDesagrupadas.size().height, TermCriteria(CV_TERMCRIT_ITER,100,0.0001), 1, KMEANS_PP_CENTERS);
 			vocabulario = bagOfWords.cluster(caracteristicasDesagrupadas);
-			dextrator.setVocabulary(vocabulario);
-			printf("\nVocabulario carregado!");
+			
 			FileStorage fs("dicionario.xml", FileStorage::WRITE);
 			fs << "vocabulario" << vocabulario;
 			fs.release();
-			printf("\nVocabulario salvo!");
+			dextrator.setVocabulary(vocabulario);
+			printf("\nVocabulario salvo e carregado!");
 
-			printf("\n Dados %d - Labels %d", dadosTreinamentoSURF.rows, labelTreinamento.rows);
+			Mat treinamento;
+			for (int i = 0; i < dadosTreinamento.size(); i++) {
+				Mat descritores;
+				vector<KeyPoint> pontosChave;
+				detetor->detect(dadosTreinamento[i], pontosChave);
+				dextrator.compute(dadosTreinamento[i], pontosChave, descritores);
+				treinamento.push_back(descritores);
+			}//for (int i = 0; i < dadosTreinamentoSURF.rows; i++)
+
+			dadosTreinamento.clear();
+
+			printf("\n Treinamento: Dados %d - Labels %d", treinamento.rows, labelTreinamento.rows);
 			//salva o treinamento SVM
 			//treinamento linear
-			linearSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), linearSVMparams);
-			linearSVM.save(buscarNomeArquivo(CvSVM::LINEAR));
+			//linearSVM.train_auto(treinamento, labelTreinamento, Mat(), Mat(), linearSVMparams);
+			//linearSVM.save(buscarNomeArquivo(CvSVM::LINEAR));
+			//printf("\n Treinamento linear encerrado");
 			///treinamento polinomial quadrático
-			polinomialSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), polinomialSVMparams);
+			polinomialSVM.train_auto(treinamento, labelTreinamento, Mat(), Mat(), polinomialSVMparams);
 			polinomialSVM.save(buscarNomeArquivo(CvSVM::POLY));
+			printf("\n Treinamento polinomial encerrado");
 			//treinamento radial
-			radialSVM.train_auto(dadosTreinamentoSURF, labelTreinamento, Mat(), Mat(), radialSVMparams);
-			radialSVM.save(buscarNomeArquivo(CvSVM::RBF));
+			//radialSVM.train_auto(treinamento, labelTreinamento, Mat(), Mat(), radialSVMparams);
+			//radialSVM.save(buscarNomeArquivo(CvSVM::RBF));
+			//printf("\n Treinamento radial encerrado");
 			printf("\nGravando treinamento!");
 			teclado = 999;
+			return 0;
 
 		} else if (teclado == 27) {
 			ofstream fs("resultado.csv");
