@@ -1,4 +1,4 @@
-﻿Build started 07/10/2015 01:04:37.
+﻿Build started 16/11/2015 23:11:35.
      1>Project "D:\Leo\Documents\tcc\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico\reconhecedor_sinal_estatico.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\reconhecedor_sinal_estatico.unsuccessfulbuild" because "AlwaysCreate" was specified.
@@ -17,4 +17,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:00.11
+Time Elapsed 00:00:00.09
